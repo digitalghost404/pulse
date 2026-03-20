@@ -1,0 +1,72 @@
+package tui
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/xcoleman/pulse/internal/domain"
+)
+
+func renderBriefingTab(b *domain.Briefing, width int) string {
+	var sb strings.Builder
+
+	sb.WriteString(titleStyle.Render(fmt.Sprintf("Pulse Briefing — %s", b.GeneratedAt.Format("Mon Jan 2, 2006"))))
+	sb.WriteString("\n\n")
+
+	// Projects
+	sb.WriteString(sectionStyle.Render("--- Projects ---"))
+	sb.WriteString("\n")
+	for _, p := range b.Projects {
+		icon := okStyle.Render("✓")
+		details := "clean"
+		if p.DirtyFiles > 0 || p.Ahead > 0 || p.Behind > 0 {
+			icon = warnStyle.Render("⚠")
+			var parts []string
+			if p.DirtyFiles > 0 {
+				parts = append(parts, fmt.Sprintf("%d dirty", p.DirtyFiles))
+			}
+			if p.Ahead > 0 {
+				parts = append(parts, fmt.Sprintf("%d ahead", p.Ahead))
+			}
+			if p.Behind > 0 {
+				parts = append(parts, fmt.Sprintf("%d behind", p.Behind))
+			}
+			details = strings.Join(parts, ", ")
+		}
+		sb.WriteString(fmt.Sprintf("  %s %s (%s) — %s\n", icon, p.RepoName, p.Branch, details))
+	}
+
+	sb.WriteString("\n")
+
+	// Notifications
+	if len(b.Notifications) > 0 {
+		sb.WriteString(sectionStyle.Render("--- GitHub ---"))
+		sb.WriteString("\n")
+		for _, n := range b.Notifications {
+			sb.WriteString(fmt.Sprintf("  ● %s — %s [%s]\n", n.RepoName, n.Title, n.Type))
+		}
+		sb.WriteString("\n")
+	}
+
+	// Costs
+	if b.CostSummary.TotalCents > 0 {
+		sb.WriteString(sectionStyle.Render(fmt.Sprintf("--- Costs (%s) ---", b.CostSummary.Period)))
+		sb.WriteString("\n")
+		for _, sc := range b.CostSummary.ByService {
+			sb.WriteString(fmt.Sprintf("  %s: $%.2f\n", sc.Service, float64(sc.AmountCents)/100))
+		}
+		sb.WriteString(fmt.Sprintf("  Total: $%.2f — Burn: $%.2f/day\n",
+			float64(b.CostSummary.TotalCents)/100, float64(b.CostSummary.BurnRateCents)/100))
+		sb.WriteString("\n")
+	}
+
+	// System
+	sb.WriteString(sectionStyle.Render("--- System ---"))
+	sb.WriteString("\n")
+	sb.WriteString(fmt.Sprintf("  CPU: %.0f%% — RAM: %.1f/%.1f GB — Disk: %.0f/%.0f GB\n",
+		b.System.CPUPct,
+		b.System.MemoryUsedMB/1024, b.System.MemoryTotalMB/1024,
+		b.System.DiskUsedGB, b.System.DiskTotalGB))
+
+	return sb.String()
+}
