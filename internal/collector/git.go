@@ -3,7 +3,6 @@ package collector
 import (
 	"context"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -133,11 +132,6 @@ func gitOutput(ctx context.Context, dir string, args ...string) string {
 		return ""
 	}
 	return strings.TrimSpace(string(out))
-}
-
-func gitOutputWithDir(ctx context.Context, dir string, args ...string) string {
-	fullArgs := append([]string{"-C", dir}, args...)
-	return gitOutput(ctx, filepath.Dir(dir), fullArgs...)
 }
 
 func init() {

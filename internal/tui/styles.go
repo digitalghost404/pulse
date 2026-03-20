@@ -23,9 +23,6 @@ var (
 	warnStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#F0C674"))
 
-	errorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#CC6666"))
-
 	okStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#8FBC8F"))
 
@@ -35,6 +32,3 @@ var (
 	helpStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#444444"))
 )
-
-// suppress unused warnings
-var _ = errorStyle

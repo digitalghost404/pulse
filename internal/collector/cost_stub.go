@@ -2,7 +2,6 @@ package collector
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 
@@ -29,7 +28,7 @@ func (c *costStub) Enabled(cfg *config.Config) bool {
 
 func (c *costStub) Collect(ctx context.Context, s store.Store, cfg *config.Config, syncID int64) error {
 	log.Printf("WARN: %s cost collector is a stub — billing API integration pending", c.name)
-	return fmt.Errorf("%s cost collector not yet implemented", c.name)
+	return nil // stub — no data collected, but don't fail the sync
 }
 
 func init() {

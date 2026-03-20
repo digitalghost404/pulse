@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log"
 	"os"
 	"strings"
 	"time"
@@ -34,6 +36,18 @@ func init() {
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
+	}
+}
+
+func init() {
+	// Set up verbose logging
+	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+		if !verbose {
+			log.SetOutput(io.Discard)
+		} else {
+			log.SetOutput(os.Stderr)
+			log.SetFlags(log.Ltime)
+		}
 	}
 }
 

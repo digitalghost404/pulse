@@ -76,6 +76,49 @@ func TestBuildBriefing(t *testing.T) {
 	}
 }
 
+func TestParsePeriod(t *testing.T) {
+	tests := []struct {
+		period string
+		days   int
+	}{
+		{"30d", 30},
+		{"7d", 7},
+		{"1d", 1},
+		{"", 30},      // default
+		{"bad", 30},   // fallback
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.period, func(t *testing.T) {
+			result := briefing.ParsePeriod(tt.period)
+			expected := time.Now().Add(-time.Duration(tt.days) * 24 * time.Hour)
+			diff := result.Sub(expected)
+			if diff < -time.Second || diff > time.Second {
+				t.Errorf("ParsePeriod(%q): expected ~%d days ago, got diff %v", tt.period, tt.days, diff)
+			}
+		})
+	}
+}
+
+func TestBuildWithOptions_Since(t *testing.T) {
+	s, _ := seedTestStore(t)
+	cfg := &config.Config{Costs: config.CostsConfig{DefaultPeriod: "30d", Currency: "USD"}}
+
+	engine := briefing.NewEngine(s, cfg)
+
+	// Build with explicit since
+	since := time.Now().Add(-7 * 24 * time.Hour)
+	b, err := engine.BuildWithOptions(context.Background(), briefing.BuildOptions{Since: since})
+	if err != nil {
+		t.Fatalf("BuildWithOptions: %v", err)
+	}
+
+	// Should still return data (since is within the cost entry range)
+	if b.CostSummary.TotalCents != 1482 {
+		t.Errorf("expected 1482 total cents, got %d", b.CostSummary.TotalCents)
+	}
+}
+
 func TestBuildBriefing_EmptyDB(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "test.db")
 	s, _ := store.NewSQLite(dbPath)

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/xcoleman/pulse/internal/config"
 )
@@ -95,6 +96,40 @@ func TestLoadConfig_AdapterEnabled(t *testing.T) {
 	// Unlisted adapters default to enabled
 	if !cfg.AdapterEnabled("docker") {
 		t.Error("expected unlisted adapter to default to enabled")
+	}
+}
+
+func TestObsidianDailyNotePath(t *testing.T) {
+	cfg := &config.Config{
+		Obsidian: config.ObsidianConfig{
+			VaultPath:     "/vault",
+			DailyNotePath: "Daily Notes/YYYY-MM-DD.md",
+		},
+	}
+
+	testTime := time.Date(2026, 3, 20, 0, 0, 0, 0, time.UTC)
+	result := cfg.ObsidianDailyNotePath(testTime)
+
+	expected := filepath.Join("/vault", "Daily Notes/2026-03-20.md")
+	if result != expected {
+		t.Errorf("expected %s, got %s", expected, result)
+	}
+}
+
+func TestObsidianDailyNotePath_CustomFormat(t *testing.T) {
+	cfg := &config.Config{
+		Obsidian: config.ObsidianConfig{
+			VaultPath:     "/vault",
+			DailyNotePath: "YYYY/MM/DD.md",
+		},
+	}
+
+	testTime := time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC)
+	result := cfg.ObsidianDailyNotePath(testTime)
+
+	expected := filepath.Join("/vault", "2026/01/05.md")
+	if result != expected {
+		t.Errorf("expected %s, got %s", expected, result)
 	}
 }
 

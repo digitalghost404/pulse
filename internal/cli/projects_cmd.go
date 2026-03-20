@@ -70,7 +70,7 @@ func printProject(p domain.ProjectSummary) {
 	icon := "✓"
 	details := "clean"
 	if p.DirtyFiles > 0 || p.Ahead > 0 || p.Behind > 0 {
-		icon := "⚠"
+		icon = "⚠"
 		var parts []string
 		if p.DirtyFiles > 0 {
 			parts = append(parts, fmt.Sprintf("%d dirty", p.DirtyFiles))
@@ -82,7 +82,6 @@ func printProject(p domain.ProjectSummary) {
 			parts = append(parts, fmt.Sprintf("%d behind", p.Behind))
 		}
 		details = strings.Join(parts, ", ")
-		_ = icon
 	}
 	fmt.Printf("  %s %s (%s) — %s\n", icon, p.RepoName, p.Branch, details)
 

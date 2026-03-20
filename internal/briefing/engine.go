@@ -33,14 +33,14 @@ func (e *Engine) BuildWithOptions(ctx context.Context, opts BuildOptions) (*doma
 			opts.Since = lastBriefing
 		}
 	}
-	return e.build(ctx)
+	return e.build(ctx, opts.Since)
 }
 
 func (e *Engine) Build(ctx context.Context) (*domain.Briefing, error) {
 	return e.BuildWithOptions(ctx, BuildOptions{})
 }
 
-func (e *Engine) build(ctx context.Context) (*domain.Briefing, error) {
+func (e *Engine) build(ctx context.Context, since time.Time) (*domain.Briefing, error) {
 	syncID, err := e.store.LatestSyncID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("getting latest sync: %w", err)
@@ -69,10 +69,13 @@ func (e *Engine) build(ctx context.Context) (*domain.Briefing, error) {
 	// Notifications
 	b.Notifications, _ = e.store.GetGitHubNotifications(ctx, syncID)
 
-	// Costs
-	since := parsePeriod(e.cfg.Costs.DefaultPeriod)
-	costEntries, _ := e.store.GetCostEntries(ctx, since)
-	b.CostSummary = buildCostSummary(costEntries, e.cfg.Costs.Currency, e.cfg.Costs.DefaultPeriod, since)
+	// Costs — use since if provided, otherwise use config period
+	costSince := since
+	if costSince.IsZero() {
+		costSince = ParsePeriod(e.cfg.Costs.DefaultPeriod)
+	}
+	costEntries, _ := e.store.GetCostEntries(ctx, costSince)
+	b.CostSummary = buildCostSummary(costEntries, e.cfg.Costs.Currency, e.cfg.Costs.DefaultPeriod, costSince)
 
 	// Docker
 	b.Docker, _ = e.store.GetDockerSnapshots(ctx, syncID)
@@ -117,7 +120,8 @@ func buildCostSummary(entries []domain.CostEntry, currency, period string, since
 	return summary
 }
 
-func parsePeriod(period string) time.Time {
+// ParsePeriod converts a period string like "30d" to a time.Time in the past.
+func ParsePeriod(period string) time.Time {
 	period = strings.TrimSpace(period)
 	if period == "" {
 		period = "30d"

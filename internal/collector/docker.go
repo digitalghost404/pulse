@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/xcoleman/pulse/internal/config"
@@ -32,6 +33,8 @@ func (d *DockerCollector) Collect(ctx context.Context, s store.Store, cfg *confi
 		return nil // docker not running, skip
 	}
 
+	// Parse container list
+	snapshots := make(map[string]domain.DockerSnapshot)
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 	for _, line := range lines {
 		if line == "" {
@@ -41,6 +44,31 @@ func (d *DockerCollector) Collect(ctx context.Context, s store.Store, cfg *confi
 		if err != nil {
 			continue
 		}
+		snapshots[snap.ContainerName] = snap
+	}
+
+	// Collect CPU/memory stats for running containers
+	statsCmd := exec.CommandContext(ctx, "docker", "stats", "--no-stream", "--format", `{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}`)
+	statsOut, err := statsCmd.Output()
+	if err == nil {
+		for _, line := range strings.Split(strings.TrimSpace(string(statsOut)), "\n") {
+			if line == "" {
+				continue
+			}
+			parts := strings.Split(line, "\t")
+			if len(parts) < 3 {
+				continue
+			}
+			name := parts[0]
+			if snap, ok := snapshots[name]; ok {
+				snap.CPUPct = ParsePercent(parts[1])
+				snap.MemoryMB = ParseMemoryMB(parts[2])
+				snapshots[name] = snap
+			}
+		}
+	}
+
+	for _, snap := range snapshots {
 		if err := s.SaveDockerSnapshot(ctx, syncID, snap); err != nil {
 			return err
 		}
@@ -68,6 +96,35 @@ func ParseDockerPSLine(line string) (domain.DockerSnapshot, error) {
 		Status:        ps.Status,
 		Ports:         ps.Ports,
 	}, nil
+}
+
+// parsePercent parses "12.34%" to 12.34
+func ParsePercent(s string) float64 {
+	s = strings.TrimSuffix(strings.TrimSpace(s), "%")
+	v, _ := strconv.ParseFloat(s, 64)
+	return v
+}
+
+// parseMemoryMB parses "123.4MiB / 1.5GiB" to 123.4
+func ParseMemoryMB(s string) float64 {
+	parts := strings.Split(s, "/")
+	if len(parts) == 0 {
+		return 0
+	}
+	used := strings.TrimSpace(parts[0])
+	if strings.HasSuffix(used, "GiB") {
+		v, _ := strconv.ParseFloat(strings.TrimSuffix(used, "GiB"), 64)
+		return v * 1024
+	}
+	if strings.HasSuffix(used, "MiB") {
+		v, _ := strconv.ParseFloat(strings.TrimSuffix(used, "MiB"), 64)
+		return v
+	}
+	if strings.HasSuffix(used, "KiB") {
+		v, _ := strconv.ParseFloat(strings.TrimSuffix(used, "KiB"), 64)
+		return v / 1024
+	}
+	return 0
 }
 
 func init() {

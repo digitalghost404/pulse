@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -34,30 +35,64 @@ func runSync(cmd *cobra.Command, args []string) error {
 	defer s.Close()
 
 	engine := psync.NewEngine(s, cfg)
-	collectors := collector.Enabled(cfg)
+	allCollectors := collector.All()
+	enabledCollectors := collector.Enabled(cfg)
 
 	only, _ := cmd.Flags().GetString("only")
 
 	var result psync.Result
 	if only != "" {
-		result = engine.RunOnly(cmd.Context(), collectors, only)
+		// Check if the collector exists but is disabled
+		found := false
+		for _, c := range allCollectors {
+			if c.Name() == only {
+				found = true
+				if !c.Enabled(cfg) {
+					envVars := c.EnvVars()
+					if len(envVars) > 0 {
+						return fmt.Errorf("collector %q is disabled — missing env var(s): %s", only, fmt.Sprint(envVars))
+					}
+					return fmt.Errorf("collector %q is disabled in config", only)
+				}
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("collector %q not found — available: %s", only, collectorNames(allCollectors))
+		}
+		result = engine.RunOnly(cmd.Context(), enabledCollectors, only)
 	} else {
-		result = engine.Run(cmd.Context(), collectors)
+		result = engine.Run(cmd.Context(), enabledCollectors)
 	}
 
-	for _, e := range result.Errors {
-		log.Printf("WARN: %s", e)
+	if !verbose {
+		for _, e := range result.Errors {
+			log.Printf("WARN: %s", e)
+		}
+	}
+
+	jsonFlag, _ := cmd.Flags().GetBool("json")
+	if jsonFlag {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(result)
 	}
 
 	fmt.Fprintf(os.Stderr, "sync: %s (run %d)\n", result.Status, result.SyncID)
 
 	switch result.Status {
-	case "success":
-		return nil
 	case "partial":
-		os.Exit(1)
-	default:
-		os.Exit(2)
+		return fmt.Errorf("sync partial: %d collector(s) failed", len(result.Errors))
+	case "failed":
+		return fmt.Errorf("sync failed: all collectors failed")
 	}
 	return nil
+}
+
+func collectorNames(collectors []collector.Collector) string {
+	names := make([]string, len(collectors))
+	for i, c := range collectors {
+		names[i] = c.Name()
+	}
+	return fmt.Sprint(names)
 }

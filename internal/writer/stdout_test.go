@@ -3,6 +3,7 @@ package writer_test
 import (
 	"bytes"
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -62,6 +63,35 @@ func TestStdoutWriter_ContainsSections(t *testing.T) {
 	}
 	if !bytes.Contains([]byte(output), []byte("pulse")) {
 		t.Error("expected output to contain 'pulse'")
+	}
+}
+
+func TestStdoutWriter_GoldenFile(t *testing.T) {
+	var buf bytes.Buffer
+	w := writer.NewStdoutWriter(&buf)
+	cfg := &config.Config{}
+
+	err := w.Write(context.Background(), sampleBriefing(), cfg)
+	if err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	output := buf.Bytes()
+	goldenPath := "testdata/briefing_full.golden"
+
+	if os.Getenv("UPDATE_GOLDEN") == "1" {
+		os.WriteFile(goldenPath, output, 0644)
+		t.Log("Golden file updated")
+		return
+	}
+
+	expected, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatalf("Golden file not found. Run with UPDATE_GOLDEN=1 to create: %v", err)
+	}
+
+	if !bytes.Equal(output, expected) {
+		t.Errorf("stdout output differs from golden file. Run with UPDATE_GOLDEN=1 to update.\nGot:\n%s\nExpected:\n%s", output, expected)
 	}
 }
 

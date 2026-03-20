@@ -72,6 +72,12 @@ func (s *SQLiteStore) migrate() error {
 		if _, err := s.db.Exec(string(data)); err != nil {
 			return fmt.Errorf("executing migration %s: %w", name, err)
 		}
+		// Record the migration version (migration 001 also inserts via SQL, but future ones need this)
+		if migVersion > 1 {
+			if _, err := s.db.Exec("INSERT INTO schema_version (version) VALUES (?)", migVersion); err != nil {
+				return fmt.Errorf("recording migration version %d: %w", migVersion, err)
+			}
+		}
 	}
 
 	return nil

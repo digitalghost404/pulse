@@ -26,6 +26,7 @@ type Model struct {
 	projDetail   bool
 	costSelected int
 	costDetail   bool
+	showHelp     bool
 }
 
 func NewModel(b *domain.Briefing) Model {
@@ -61,6 +62,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.toggleDetail()
 		case "esc":
 			m.closeDetail()
+			m.showHelp = false
+		case "?":
+			m.showHelp = !m.showHelp
 		}
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -151,7 +155,20 @@ func (m Model) View() string {
 
 	// Help
 	sb.WriteString("\n")
-	sb.WriteString(helpStyle.Render("q quit · 1-3 tabs · j/k scroll · enter drill · esc back · ? help"))
+	if m.showHelp {
+		sb.WriteString(helpStyle.Render(
+			"Key Bindings:\n" +
+				"  1        Briefing tab\n" +
+				"  2        Projects tab\n" +
+				"  3        Costs tab\n" +
+				"  j/k      Scroll down/up\n" +
+				"  Enter    Drill into selected item\n" +
+				"  Esc      Back / close help\n" +
+				"  ?        Toggle this help\n" +
+				"  q        Quit\n"))
+	} else {
+		sb.WriteString(helpStyle.Render("q quit · 1-3 tabs · j/k scroll · enter drill · esc back · ? help"))
+	}
 
 	return sb.String()
 }

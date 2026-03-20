@@ -56,6 +56,42 @@ func TestDockerCollector_ParseDockerPS(t *testing.T) {
 	}
 }
 
+func TestParsePercent(t *testing.T) {
+	tests := []struct {
+		input string
+		want  float64
+	}{
+		{"12.34%", 12.34},
+		{"0.00%", 0},
+		{"100.00%", 100},
+		{"", 0},
+	}
+	for _, tt := range tests {
+		got := collector.ParsePercent(tt.input)
+		if got != tt.want {
+			t.Errorf("parsePercent(%q) = %f, want %f", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestParseMemoryMB(t *testing.T) {
+	tests := []struct {
+		input string
+		want  float64
+	}{
+		{"123.4MiB / 1.5GiB", 123.4},
+		{"1.5GiB / 4GiB", 1536},
+		{"512KiB / 1GiB", 0.5},
+		{"", 0},
+	}
+	for _, tt := range tests {
+		got := collector.ParseMemoryMB(tt.input)
+		if got != tt.want {
+			t.Errorf("parseMemoryMB(%q) = %f, want %f", tt.input, got, tt.want)
+		}
+	}
+}
+
 func TestDockerCollector_EnabledCheck(t *testing.T) {
 	dc := &collector.DockerCollector{}
 

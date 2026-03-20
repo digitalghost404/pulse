@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"fmt"
 	"time"
 
@@ -43,10 +44,15 @@ func runObsidian(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Render content for history
+	var rendered bytes.Buffer
+	sw := writer.NewStdoutWriter(&rendered)
+	sw.Write(cmd.Context(), b, cfg)
+
 	// Save history
 	s.SaveBriefing(cmd.Context(), domain.BriefingEntry{
 		CreatedAt: time.Now(),
-		Content:   b.GeneratedAt.String(),
+		Content:   rendered.String(),
 		Writer:    "obsidian",
 	})
 
