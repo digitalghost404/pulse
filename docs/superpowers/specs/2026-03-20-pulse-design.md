@@ -45,7 +45,7 @@ Single Go binary with three layers:
 | `pulse config adapters` | Show adapter status: enabled, disabled, or missing env var |
 | `pulse version` | Print version |
 
-All stdout commands support `--json` for scripting. Built with Cobra.
+All stdout commands support `--json` for scripting. JSON output mirrors the Go structs serialized as JSON and is considered unstable until v1.0. Built with Cobra.
 
 ### Core Components
 
@@ -57,20 +57,34 @@ All stdout commands support `--json` for scripting. Built with Cobra.
 ### Interfaces
 
 ```go
+// Store defines the data access interface for collectors and readers.
+// Concrete implementation uses SQLite; tests can mock this interface.
+type Store interface {
+    SaveGitSnapshot(ctx context.Context, syncID int64, snapshot GitSnapshot) error
+    SaveGitBranches(ctx context.Context, syncID int64, branches []GitBranch) error
+    SaveCostEntry(ctx context.Context, syncID int64, entry CostEntry) error
+    SaveDockerSnapshot(ctx context.Context, syncID int64, snapshot DockerSnapshot) error
+    SaveSystemSnapshot(ctx context.Context, syncID int64, snapshot SystemSnapshot) error
+    SaveGitHubNotifications(ctx context.Context, syncID int64, notifs []Notification) error
+    // ... read methods used by Briefing Engine
+}
+
 // Collector gathers data from an external source and writes it to the store.
 type Collector interface {
     Name() string                        // adapter key: "git", "claude", etc.
     EnvVars() []string                   // required env vars, e.g. ["ANTHROPIC_API_KEY"]
-    Enabled(cfg Config) bool             // check config + env vars
-    Collect(ctx context.Context, store *Store, cfg Config) error
+    Enabled(cfg *Config) bool            // check config + env vars
+    Collect(ctx context.Context, store Store, cfg *Config) error
 }
 
 // Writer renders a briefing to an output target.
 type Writer interface {
     Name() string                        // "stdout", "tui", "obsidian"
-    Write(ctx context.Context, briefing *Briefing, cfg Config) error
+    Write(ctx context.Context, briefing *Briefing, cfg *Config) error
 }
 ```
+
+Note: `Config` is passed by pointer to avoid copying as the struct grows. `Store` is an interface (not a concrete struct) so Collectors can be unit tested with mock stores.
 
 All adapters self-register at init via a global registry. Adding a new adapter = one file implementing the interface + one registration line.
 
@@ -108,14 +122,16 @@ Collectors → Sync Engine → SQLite → Briefing Engine → Writers
 |-----------|--------|------|
 | Git Scanner | Local repos | Branch, dirty files, ahead/behind, last commit, stale branches |
 | GitHub API | GitHub REST API | PRs, issues, CI failures |
-| Claude Costs | Anthropic API | Usage and spend |
 | System Resources | `/proc`, `free`, `df` | CPU, RAM, disk usage |
 | Docker Status | Docker CLI/API | Running containers, resource usage |
 
-### If API Exists
+### If Billing API Exists
+
+All cost collectors require a programmatic billing/usage endpoint. Before implementing each adapter, verify the API exists. If no API is available, consider alternatives: console scraping (fragile), local log parsing, or manual CSV import.
 
 | Collector | Source | Data |
 |-----------|--------|------|
+| Claude Costs | Anthropic API | Usage and spend |
 | Voyage AI | Voyage API | Usage and spend |
 | Tavily | Tavily API | Usage and spend |
 | ElevenLabs | ElevenLabs API | Usage and spend |
@@ -147,15 +163,37 @@ projects:
     - docs
 ```
 
-Pulse recursively finds git repos under `scan` directories, excluding entries in `ignore`.
+Pulse finds git repos under `scan` directories with the following rules:
+
+- **Max depth: 2 levels** — scans `scan_dir/project_name/.git`, not deeper
+- **Default exclusions:** `node_modules`, `vendor`, `.cache`, `.git` (submodules), `__pycache__`
+- **`ignore` list:** supports exact directory names (matched against the repo directory name, not path)
+- Repos are identified by the presence of a `.git` directory
 
 ## Data Collection
 
 - `pulse sync` runs all enabled Collectors, called by cron hourly (`0 * * * *`)
 - Each Collector runs with a configurable timeout (default: 30s)
 - Failed Collectors log a warning; sync continues with remaining adapters
-- Exit codes: 0 (all succeeded), 1 (partial — some failed), 2 (total failure)
 - `pulse sync --only <adapter>` runs a single Collector for testing/debugging
+
+### Briefing Time Window
+
+The default briefing (`pulse`) shows data since the last rendered briefing. If no previous briefing exists (first run), it shows data from the most recent sync. An optional `--since` flag allows overriding with a duration (e.g., `--since 24h`, `--since 7d`).
+
+### Exit Codes
+
+| Command | 0 | 1 | 2 |
+|---------|---|---|---|
+| `pulse sync` | All collectors succeeded | Partial — some failed | Total failure |
+| All read commands (`pulse`, `pulse costs`, etc.) | Success | Error (DB missing, config invalid, no data) | — |
+
+### Logging
+
+- All log output goes to stderr (keeps stdout clean for piping and scripting)
+- Default: warnings and errors only
+- `--verbose` flag: enables debug-level output (useful for diagnosing adapter failures)
+- For cron runs, stderr is captured by cron's default mail behavior; optionally configure a log file via `sync.log_file` in config
 
 ## Credential Management
 
@@ -167,6 +205,10 @@ Pulse recursively finds git repos under `scan` directories, excluding entries in
 ## Data Model
 
 SQLite database at `~/.config/pulse/pulse.db`.
+
+### Schema Migrations
+
+Pulse uses embedded SQL migration files with a `schema_version` table. On startup, Pulse checks the current schema version and runs any pending migrations in order. Migrations are embedded in the binary via `go:embed` and run automatically — no external migration tool required. Each migration is a numbered `.sql` file (e.g., `001_initial.sql`, `002_add_index.sql`).
 
 ### sync_runs
 
@@ -270,6 +312,11 @@ SQLite database at `~/.config/pulse/pulse.db`.
 
 All collector tables link to `sync_id` for time-travel queries ("what did things look like at sync X?"). `briefing_history` is independent — written when a briefing is rendered, not during sync.
 
+### Retention
+
+- `briefing_history`: 30-day retention. Entries older than 30 days are pruned during `pulse sync`.
+- Collector data: retained indefinitely (used for cost trend queries). If DB size becomes a concern, a future `pulse prune --older-than 90d` command can be added.
+
 ## TUI Layout
 
 Tab bar layout with three full-screen views, switched with number keys:
@@ -308,7 +355,7 @@ github:
 
 obsidian:
   vault_path: ~/path-to-your-vault
-  daily_note_path: "Daily Notes/YYYY-MM-DD.md"
+  daily_note_path: "Daily Notes/YYYY-MM-DD.md"  # uses Obsidian-style date tokens
   section_heading: "## Pulse Briefing"
 
 adapters:
@@ -324,6 +371,7 @@ adapters:
 
 sync:
   timeout: 30s         # per-adapter timeout
+  # log_file: ~/.config/pulse/sync.log  # optional, for cron debugging
 
 costs:
   default_period: 30d
@@ -333,6 +381,8 @@ costs:
 - No secrets in this file — API keys come from environment variables
 - Adapters enabled by default; missing env vars produce warnings, not errors
 - Obsidian config is optional; `pulse obsidian` tells you what to set if missing
+- `daily_note_path` uses Obsidian-style date tokens (`YYYY`, `MM`, `DD`) to match Obsidian's own daily note config. Pulse translates these to Go's time format internally (e.g., `YYYY-MM-DD` → `2006-01-02`).
+- `github.username` is used to query the GitHub notifications API (`/notifications`) for the authenticated user. Notifications are fetched for all repos the user has access to — no org/repo filtering in v1.
 
 ## Testing Strategy
 
@@ -362,4 +412,4 @@ costs:
 
 - Single Go binary, installable via `go install` or Homebrew tap
 - All config/data paths are absolute (`~/.config/pulse/`) — runs from any directory
-- Cron setup documented; `pulse config init` can optionally install the cron entry
+- Cron setup: `pulse config init` can optionally install a user crontab entry via the `crontab` command (`crontab -l | { cat; echo "0 * * * * pulse sync"; } | crontab -`). On WSL2, the cron service may need to be started manually (`sudo service cron start`) or enabled via `/etc/wsl.conf` with `[boot] command="service cron start"`.
