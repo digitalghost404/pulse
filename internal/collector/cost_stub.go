@@ -9,11 +9,11 @@ import (
 	"github.com/xcoleman/pulse/internal/store"
 )
 
-// costStub is a placeholder collector for cost services whose billing APIs
-// need to be verified before full implementation.
+// costStub is a placeholder for cost services without a usable billing API.
 type costStub struct {
 	name   string
 	envVar string
+	reason string
 }
 
 func (c *costStub) Name() string      { return c.name }
@@ -27,13 +27,19 @@ func (c *costStub) Enabled(cfg *config.Config) bool {
 }
 
 func (c *costStub) Collect(ctx context.Context, s store.Store, cfg *config.Config, syncID int64) error {
-	log.Printf("WARN: %s cost collector is a stub — billing API integration pending", c.name)
-	return nil // stub — no data collected, but don't fail the sync
+	log.Printf("WARN: %s cost collector is a stub — %s", c.name, c.reason)
+	return nil
 }
 
 func init() {
-	Register(&costStub{name: "claude", envVar: "ANTHROPIC_API_KEY"})
-	Register(&costStub{name: "voyage", envVar: "VOYAGE_API_KEY"})
-	Register(&costStub{name: "tavily", envVar: "TAVILY_API_KEY"})
-	Register(&costStub{name: "elevenlabs", envVar: "ELEVENLABS_API_KEY"})
+	Register(&costStub{
+		name:   "claude",
+		envVar: "ANTHROPIC_API_KEY",
+		reason: "usage API requires an Admin key (sk-ant-admin...), not a regular API key",
+	})
+	Register(&costStub{
+		name:   "voyage",
+		envVar: "VOYAGE_API_KEY",
+		reason: "Voyage AI has no public billing/usage API — usage is only visible on the web dashboard",
+	})
 }

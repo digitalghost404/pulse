@@ -73,14 +73,24 @@ func (w *StdoutWriter) writeNotifications(notifs []domain.Notification) {
 }
 
 func (w *StdoutWriter) writeCosts(cs domain.CostSummary) {
-	if cs.TotalCents == 0 {
+	if len(cs.ByService) == 0 {
 		return
 	}
 	fmt.Fprintf(w.out, "--- Costs (%s) ---\n", cs.Period)
 	for _, sc := range cs.ByService {
-		fmt.Fprintf(w.out, "  %s: $%.2f\n", sc.Service, float64(sc.AmountCents)/100)
+		if sc.AmountCents > 0 {
+			fmt.Fprintf(w.out, "  %s: $%.2f", sc.Service, float64(sc.AmountCents)/100)
+		} else {
+			fmt.Fprintf(w.out, "  %s:", sc.Service)
+		}
+		if sc.UsageQuantity > 0 {
+			fmt.Fprintf(w.out, " (%.0f %s)", sc.UsageQuantity, sc.UsageUnit)
+		}
+		fmt.Fprintln(w.out)
 	}
-	fmt.Fprintf(w.out, "  Total: $%.2f — Burn: $%.2f/day\n", float64(cs.TotalCents)/100, float64(cs.BurnRateCents)/100)
+	if cs.TotalCents > 0 {
+		fmt.Fprintf(w.out, "  Total: $%.2f — Burn: $%.2f/day\n", float64(cs.TotalCents)/100, float64(cs.BurnRateCents)/100)
+	}
 	fmt.Fprintln(w.out)
 }
 
