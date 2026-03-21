@@ -32,11 +32,7 @@ func (c *costStub) Collect(ctx context.Context, s store.Store, cfg *config.Confi
 }
 
 func init() {
-	Register(&costStub{
-		name:   "claude",
-		envVar: "ANTHROPIC_API_KEY",
-		reason: "usage API requires an Admin key (sk-ant-admin...), not a regular API key",
-	})
+	// Claude collector is now implemented in claude.go (parses local Claude Code logs)
 	Register(&costStub{
 		name:   "voyage",
 		envVar: "VOYAGE_API_KEY",

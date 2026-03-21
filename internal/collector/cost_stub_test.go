@@ -9,7 +9,6 @@ import (
 )
 
 func TestCostCollectors_Registered(t *testing.T) {
-	// Verify all cost collectors exist in the registry
 	for _, name := range []string{"claude", "voyage", "tavily", "elevenlabs"} {
 		_, ok := collector.Get(name)
 		if !ok {
@@ -18,13 +17,32 @@ func TestCostCollectors_Registered(t *testing.T) {
 	}
 }
 
-func TestCostCollectors_EnvVars(t *testing.T) {
+func TestCostCollectors_EnvVarStubs(t *testing.T) {
+	// Only voyage is still a stub with env var requirements
 	tests := []struct {
 		name   string
 		envVar string
 	}{
-		{"claude", "ANTHROPIC_API_KEY"},
 		{"voyage", "VOYAGE_API_KEY"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, _ := collector.Get(tt.name)
+			envVars := c.EnvVars()
+			if len(envVars) != 1 || envVars[0] != tt.envVar {
+				t.Errorf("expected [%s], got %v", tt.envVar, envVars)
+			}
+		})
+	}
+}
+
+func TestCostCollectors_RealCollectorEnvVars(t *testing.T) {
+	// Tavily and ElevenLabs have real collectors with env vars
+	tests := []struct {
+		name   string
+		envVar string
+	}{
 		{"tavily", "TAVILY_API_KEY"},
 		{"elevenlabs", "ELEVENLABS_API_KEY"},
 	}
@@ -40,17 +58,29 @@ func TestCostCollectors_EnvVars(t *testing.T) {
 	}
 }
 
-func TestCostCollectors_DisabledWithoutEnvVar(t *testing.T) {
+func TestClaudeCollector_NoEnvVarRequired(t *testing.T) {
+	c, ok := collector.Get("claude")
+	if !ok {
+		t.Fatal("expected claude collector to be registered")
+	}
+	// Claude collector reads local logs — no API key needed
+	if len(c.EnvVars()) != 0 {
+		t.Errorf("expected no env vars for claude, got %v", c.EnvVars())
+	}
+	// Should be enabled by default (reads local files)
+	cfg := &config.Config{}
+	if !c.Enabled(cfg) {
+		t.Error("expected claude collector enabled by default")
+	}
+}
+
+func TestCostStub_DisabledWithoutEnvVar(t *testing.T) {
 	cfg := &config.Config{}
 
-	for _, name := range []string{"claude", "voyage", "tavily", "elevenlabs"} {
-		c, _ := collector.Get(name)
-		// Ensure env var is unset
-		for _, ev := range c.EnvVars() {
-			os.Unsetenv(ev)
-		}
-		if c.Enabled(cfg) {
-			t.Errorf("expected %s collector disabled without env var", name)
-		}
+	// Only voyage still requires env var
+	c, _ := collector.Get("voyage")
+	os.Unsetenv("VOYAGE_API_KEY")
+	if c.Enabled(cfg) {
+		t.Error("expected voyage collector disabled without env var")
 	}
 }
