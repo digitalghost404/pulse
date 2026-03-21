@@ -115,17 +115,26 @@ func (c *ClaudeCollector) Collect(ctx context.Context, s store.Store, cfg *confi
 		return nil // no usage in period
 	}
 
-	// Calculate cost estimate
-	totalCostCents := 0
-	for model, usage := range modelUsage {
-		pricing, ok := modelPricing[model]
-		if !ok {
-			// Default to Sonnet pricing for unknown models
-			pricing = modelPricing["claude-sonnet-4-6"]
+	// Calculate cost
+	var totalCostCents int
+	usageUnit := "tokens"
+	subscription := cfg.Claude.Subscription
+
+	if subscription == "max" && cfg.Claude.MonthlyCostCents > 0 {
+		// Fixed monthly subscription — prorate to daily
+		totalCostCents = cfg.Claude.MonthlyCostCents / 30
+		usageUnit = "tokens (Max $" + fmt.Sprintf("%.0f", float64(cfg.Claude.MonthlyCostCents)/100) + "/mo)"
+	} else {
+		// API pricing — estimate from token counts
+		for model, usage := range modelUsage {
+			pricing, ok := modelPricing[model]
+			if !ok {
+				pricing = modelPricing["claude-sonnet-4-6"]
+			}
+			inputCost := float64(usage.input) / 1_000_000 * pricing.input * 100
+			outputCost := float64(usage.output) / 1_000_000 * pricing.output * 100
+			totalCostCents += int(inputCost + outputCost)
 		}
-		inputCost := float64(usage.input) / 1_000_000 * pricing.input * 100
-		outputCost := float64(usage.output) / 1_000_000 * pricing.output * 100
-		totalCostCents += int(inputCost + outputCost)
 	}
 
 	// Build raw data JSON
@@ -136,6 +145,7 @@ func (c *ClaudeCollector) Collect(ctx context.Context, s store.Store, cfg *confi
 		"cache_read_input_tokens":      totalCacheReadTokens,
 		"model_usage":                  modelUsage,
 		"source":                       "claude_code_logs",
+		"subscription":                 subscription,
 	})
 
 	entry := domain.CostEntry{
@@ -145,7 +155,7 @@ func (c *ClaudeCollector) Collect(ctx context.Context, s store.Store, cfg *confi
 		AmountCents:   totalCostCents,
 		Currency:      "USD",
 		UsageQuantity: float64(totalTokens),
-		UsageUnit:     "tokens",
+		UsageUnit:     usageUnit,
 		RawData:       string(rawData),
 	}
 

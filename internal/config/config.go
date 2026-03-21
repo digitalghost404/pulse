@@ -13,6 +13,7 @@ type Config struct {
 	Projects ProjectsConfig  `mapstructure:"projects"`
 	GitHub   GitHubConfig    `mapstructure:"github"`
 	Obsidian ObsidianConfig  `mapstructure:"obsidian"`
+	Claude   ClaudeConfig    `mapstructure:"claude"`
 	Adapters map[string]bool `mapstructure:"adapters"`
 	Sync     SyncConfig      `mapstructure:"sync"`
 	Costs    CostsConfig     `mapstructure:"costs"`
@@ -31,6 +32,11 @@ type ObsidianConfig struct {
 	VaultPath      string `mapstructure:"vault_path"`
 	DailyNotePath  string `mapstructure:"daily_note_path"`
 	SectionHeading string `mapstructure:"section_heading"`
+}
+
+type ClaudeConfig struct {
+	Subscription     string `mapstructure:"subscription"`      // "max", "api", or "" (auto-detect)
+	MonthlyCostCents int    `mapstructure:"monthly_cost_cents"` // fixed monthly cost in cents (e.g., 10000 = $100)
 }
 
 type SyncConfig struct {
