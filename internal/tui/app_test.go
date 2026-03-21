@@ -143,6 +143,44 @@ func TestBriefingTabContent(t *testing.T) {
 	}
 }
 
+func TestCostsNavigation(t *testing.T) {
+	m := tui.NewModel(sampleBriefing())
+	m = updateModel(m, tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	// Switch to costs
+	m = updateModel(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("3")})
+
+	// First service should have cursor
+	view := m.View()
+	if !strings.Contains(view, "> ") {
+		t.Error("expected cursor on first cost service")
+	}
+
+	// Move down to voyage
+	m = updateModel(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	view = m.View()
+	if !strings.Contains(view, "voyage") {
+		t.Error("expected voyage in costs view")
+	}
+
+	// Enter detail — should show extra info
+	m = updateModel(m, tea.KeyMsg{Type: tea.KeyEnter})
+	view = m.View()
+	if !strings.Contains(view, "Share:") {
+		t.Error("expected drill-down detail with 'Share:' after pressing Enter")
+	}
+	if !strings.Contains(view, "Daily:") {
+		t.Error("expected drill-down detail with 'Daily:' after pressing Enter")
+	}
+
+	// Esc to close detail
+	m = updateModel(m, tea.KeyMsg{Type: tea.KeyEsc})
+	view = m.View()
+	if strings.Contains(view, "Share:") {
+		t.Error("expected detail to be closed after Esc")
+	}
+}
+
 func TestCostsTabBarChart(t *testing.T) {
 	m := tui.NewModel(sampleBriefing())
 	m = updateModel(m, tea.WindowSizeMsg{Width: 80, Height: 24})

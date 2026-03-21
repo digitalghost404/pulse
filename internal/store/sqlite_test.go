@@ -254,6 +254,60 @@ func TestGitHubNotificationsRoundTrip(t *testing.T) {
 	}
 }
 
+func TestGitBranchRoundTrip(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	syncID, _ := s.CreateSyncRun(ctx)
+
+	branches := []domain.GitBranch{
+		{
+			RepoPath:     "/projects/pulse",
+			BranchName:   "main",
+			LastCommitAt: time.Now().Truncate(time.Second),
+			IsMerged:     true,
+			IsCurrent:    true,
+		},
+		{
+			RepoPath:     "/projects/pulse",
+			BranchName:   "feature-x",
+			LastCommitAt: time.Now().Truncate(time.Second),
+			IsMerged:     false,
+			IsCurrent:    false,
+		},
+	}
+
+	if err := s.SaveGitBranches(ctx, syncID, branches); err != nil {
+		t.Fatalf("SaveGitBranches: %v", err)
+	}
+
+	got, err := s.GetGitBranches(ctx, syncID, "/projects/pulse")
+	if err != nil {
+		t.Fatalf("GetGitBranches: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected 2 branches, got %d", len(got))
+	}
+
+	// Find the feature branch
+	var feature *domain.GitBranch
+	for i := range got {
+		if got[i].BranchName == "feature-x" {
+			feature = &got[i]
+			break
+		}
+	}
+	if feature == nil {
+		t.Fatal("expected to find feature-x branch")
+	}
+	if feature.IsMerged {
+		t.Error("expected feature-x to not be merged")
+	}
+	if feature.IsCurrent {
+		t.Error("expected feature-x to not be current")
+	}
+}
+
 func TestGetLastBriefingTime(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()

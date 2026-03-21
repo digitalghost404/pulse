@@ -1,0 +1,30 @@
+
+## Pulse Briefing
+
+*Generated Fri Mar 20, 2026 07:00*
+
+### Projects
+
+- ⚠️ **cortex** (`main`) — 3 dirty, 2 ahead
+- ✅ **pulse** (`main`) — clean
+
+### GitHub
+
+- 🔔 **obsidian-mcp** — Fix FTS5 indexing `[pr]`
+
+### Costs (30d)
+
+| Service | Cost |
+|---------|------|
+| claude | $14.82 |
+| voyage | $2.10 |
+| tavily | $1.50 |
+
+**Total:** $18.42 — **Burn:** $0.61/day
+
+### System
+
+- **CPU:** 12%
+- **RAM:** 17.8/31.2 GB
+- **Disk:** 142/256 GB
+

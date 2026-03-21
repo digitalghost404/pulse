@@ -126,6 +126,43 @@ func TestObsidianWriter_RendersMarkdown(t *testing.T) {
 	}
 }
 
+func TestObsidianWriter_GoldenFile(t *testing.T) {
+	dir := t.TempDir()
+	notePath := filepath.Join(dir, "2026-03-20.md")
+
+	cfg := &config.Config{
+		Obsidian: config.ObsidianConfig{
+			VaultPath:      dir,
+			DailyNotePath:  "YYYY-MM-DD.md",
+			SectionHeading: "## Pulse Briefing",
+		},
+	}
+
+	w := writer.NewObsidianWriter()
+	err := w.Write(context.Background(), sampleBriefing(), cfg)
+	if err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	content, _ := os.ReadFile(notePath)
+	goldenPath := "testdata/obsidian_briefing.golden"
+
+	if os.Getenv("UPDATE_GOLDEN") == "1" {
+		os.WriteFile(goldenPath, content, 0644)
+		t.Log("Obsidian golden file updated")
+		return
+	}
+
+	expected, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatalf("Golden file not found. Run with UPDATE_GOLDEN=1 to create: %v", err)
+	}
+
+	if string(content) != string(expected) {
+		t.Errorf("obsidian output differs from golden file. Run with UPDATE_GOLDEN=1 to update.")
+	}
+}
+
 func TestObsidianWriter_MissingConfig(t *testing.T) {
 	cfg := &config.Config{} // No obsidian config
 

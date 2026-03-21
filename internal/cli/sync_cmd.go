@@ -3,7 +3,6 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -65,10 +64,9 @@ func runSync(cmd *cobra.Command, args []string) error {
 		result = engine.Run(cmd.Context(), enabledCollectors)
 	}
 
-	if !verbose {
-		for _, e := range result.Errors {
-			log.Printf("WARN: %s", e)
-		}
+	// Always show sync warnings on stderr (regardless of --verbose)
+	for _, e := range result.Errors {
+		fmt.Fprintf(os.Stderr, "WARN: %s\n", e)
 	}
 
 	jsonFlag, _ := cmd.Flags().GetBool("json")
@@ -82,8 +80,10 @@ func runSync(cmd *cobra.Command, args []string) error {
 
 	switch result.Status {
 	case "partial":
+		exitCode = 1
 		return fmt.Errorf("sync partial: %d collector(s) failed", len(result.Errors))
 	case "failed":
+		exitCode = 2
 		return fmt.Errorf("sync failed: all collectors failed")
 	}
 	return nil

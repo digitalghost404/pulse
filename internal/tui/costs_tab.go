@@ -31,6 +31,22 @@ func renderCostsTab(cs domain.CostSummary, selected int, detail bool, width int)
 		bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
 
 		sb.WriteString(fmt.Sprintf("%s%-12s $%7.2f %s\n", cursor, sc.Service, float64(sc.AmountCents)/100, bar))
+
+		// Detail view for selected service
+		if i == selected && detail {
+			sb.WriteString("\n")
+			sb.WriteString(fmt.Sprintf("      Service:  %s\n", sc.Service))
+			sb.WriteString(fmt.Sprintf("      Amount:   $%.2f\n", float64(sc.AmountCents)/100))
+			if sc.UsageQuantity > 0 {
+				sb.WriteString(fmt.Sprintf("      Usage:    %.0f %s\n", sc.UsageQuantity, sc.UsageUnit))
+			}
+			if cs.TotalCents > 0 {
+				sb.WriteString(fmt.Sprintf("      Share:    %.0f%%\n", pct*100))
+			}
+			dailyRate := float64(sc.AmountCents) / 30.0 // approximate daily over period
+			sb.WriteString(fmt.Sprintf("      Daily:    ~$%.2f/day\n", dailyRate/100))
+			sb.WriteString("\n")
+		}
 	}
 
 	sb.WriteString(fmt.Sprintf("\n  Total: $%.2f — Burn: $%.2f/day\n",

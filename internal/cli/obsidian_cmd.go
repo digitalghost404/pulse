@@ -2,7 +2,9 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -18,6 +20,7 @@ var obsidianCmd = &cobra.Command{
 }
 
 func init() {
+	obsidianCmd.Flags().String("since", "", "Show data since duration (e.g., 24h, 7d)")
 	rootCmd.AddCommand(obsidianCmd)
 }
 
@@ -34,9 +37,27 @@ func runObsidian(cmd *cobra.Command, args []string) error {
 	defer s.Close()
 
 	engine := briefing.NewEngine(s, cfg)
-	b, err := engine.Build(cmd.Context())
+
+	sinceStr, _ := cmd.Flags().GetString("since")
+	var opts briefing.BuildOptions
+	if sinceStr != "" {
+		d, err := parseSinceDuration(sinceStr)
+		if err != nil {
+			return fmt.Errorf("invalid --since value: %w", err)
+		}
+		opts.Since = time.Now().Add(-d)
+	}
+
+	b, err := engine.BuildWithOptions(cmd.Context(), opts)
 	if err != nil {
 		return err
+	}
+
+	jsonFlag, _ := cmd.Flags().GetBool("json")
+	if jsonFlag {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(b)
 	}
 
 	w := writer.NewObsidianWriter()

@@ -60,6 +60,20 @@ func renderBriefingTab(b *domain.Briefing, width int) string {
 		sb.WriteString("\n")
 	}
 
+	// Docker
+	if len(b.Docker) > 0 {
+		sb.WriteString(sectionStyle.Render("--- Docker ---"))
+		sb.WriteString("\n")
+		for _, c := range b.Docker {
+			icon := okStyle.Render("●")
+			if !strings.HasPrefix(c.Status, "Up") {
+				icon = dimStyle.Render("○")
+			}
+			sb.WriteString(fmt.Sprintf("  %s %s (%s) — %s\n", icon, c.ContainerName, c.Image, c.Status))
+		}
+		sb.WriteString("\n")
+	}
+
 	// System
 	sb.WriteString(sectionStyle.Render("--- System ---"))
 	sb.WriteString("\n")

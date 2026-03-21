@@ -33,9 +33,12 @@ func init() {
 	rootCmd.Flags().String("since", "", "Show data since duration (e.g., 24h, 7d)")
 }
 
+// exitCode allows commands to set a specific exit code (e.g., 2 for total sync failure).
+var exitCode = 1
+
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		os.Exit(1)
+		os.Exit(exitCode)
 	}
 }
 
