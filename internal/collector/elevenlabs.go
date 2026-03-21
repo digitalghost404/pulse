@@ -79,11 +79,16 @@ func (e *ElevenLabsCollector) Collect(ctx context.Context, s store.Store, cfg *c
 		}
 	}
 
+	amountCents := 0
+	if cfg.Costs.Pricing.ElevenLabsCentsPer1KChars > 0 {
+		amountCents = int(totalChars / 1000 * float64(cfg.Costs.Pricing.ElevenLabsCentsPer1KChars))
+	}
+
 	entry := domain.CostEntry{
 		Service:       "elevenlabs",
 		PeriodStart:   now.Add(-24 * time.Hour),
 		PeriodEnd:     now,
-		AmountCents:   0, // Characters used, not dollar cost
+		AmountCents:   amountCents,
 		Currency:      "USD",
 		UsageQuantity: totalChars,
 		UsageUnit:     "characters",

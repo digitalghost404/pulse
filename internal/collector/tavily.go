@@ -78,11 +78,16 @@ func (t *TavilyCollector) Collect(ctx context.Context, s store.Store, cfg *confi
 	}
 
 	now := time.Now()
+	amountCents := 0
+	if cfg.Costs.Pricing.TavilyCentsPerRequest > 0 {
+		amountCents = usage.Key.Usage * cfg.Costs.Pricing.TavilyCentsPerRequest
+	}
+
 	entry := domain.CostEntry{
 		Service:       "tavily",
 		PeriodStart:   now.Add(-24 * time.Hour),
 		PeriodEnd:     now,
-		AmountCents:   0, // Tavily doesn't expose dollar amounts via API
+		AmountCents:   amountCents,
 		Currency:      "USD",
 		UsageQuantity: float64(usage.Key.Usage),
 		UsageUnit:     "requests",

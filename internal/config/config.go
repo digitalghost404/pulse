@@ -48,6 +48,12 @@ type CostsConfig struct {
 	DefaultPeriod string               `mapstructure:"default_period"`
 	Currency      string               `mapstructure:"currency"`
 	Subscriptions []SubscriptionConfig `mapstructure:"subscriptions"`
+	Pricing       PricingConfig        `mapstructure:"pricing"`
+}
+
+type PricingConfig struct {
+	TavilyCentsPerRequest      int     `mapstructure:"tavily_cents_per_request"`       // e.g., 1 = $0.01/request
+	ElevenLabsCentsPer1KChars  int     `mapstructure:"elevenlabs_cents_per_1k_chars"`  // e.g., 30 = $0.30/1k chars
 }
 
 type SubscriptionConfig struct {
@@ -149,6 +155,9 @@ sync:
 costs:
   default_period: 30d
   currency: USD
+  pricing:
+    tavily_cents_per_request: 1        # $0.01/request (pay-as-you-go)
+    elevenlabs_cents_per_1k_chars: 30  # $0.30/1k characters
 `
 
 func GenerateDefault(path string) error {

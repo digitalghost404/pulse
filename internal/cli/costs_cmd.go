@@ -37,7 +37,9 @@ func runCosts(cmd *cobra.Command, args []string) error {
 	defer s.Close()
 
 	engine := briefing.NewEngine(s, cfg)
-	b, err := engine.Build(cmd.Context())
+	b, err := engine.BuildWithOptions(cmd.Context(), briefing.BuildOptions{
+		Since: briefing.ParsePeriod(cfg.Costs.DefaultPeriod),
+	})
 	if err != nil {
 		return err
 	}
