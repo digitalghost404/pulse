@@ -7,10 +7,12 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/xcoleman/pulse/internal/briefing"
 	"github.com/xcoleman/pulse/internal/collector"
 	"github.com/xcoleman/pulse/internal/config"
+	"github.com/xcoleman/pulse/internal/domain"
 	"github.com/xcoleman/pulse/internal/store"
 	psync "github.com/xcoleman/pulse/internal/sync"
 	"github.com/xcoleman/pulse/internal/writer"
@@ -90,5 +92,29 @@ func TestFullSyncAndBriefing(t *testing.T) {
 	output := buf.String()
 	if !bytes.Contains([]byte(output), []byte("test-repo")) {
 		t.Error("expected output to contain 'test-repo'")
+	}
+
+	// Step 4: Save briefing history and verify time tracking
+	s.SaveBriefing(context.Background(), domain.BriefingEntry{
+		CreatedAt: time.Now(),
+		Content:   output,
+		Writer:    "stdout",
+	})
+
+	lastTime, err := s.GetLastBriefingTime(context.Background())
+	if err != nil {
+		t.Fatalf("GetLastBriefingTime: %v", err)
+	}
+	if lastTime.IsZero() {
+		t.Error("expected non-zero last briefing time after save")
+	}
+
+	// Step 5: Build again with options — should use last briefing time
+	b2, err := bEngine.BuildWithOptions(context.Background(), briefing.BuildOptions{})
+	if err != nil {
+		t.Fatalf("BuildWithOptions: %v", err)
+	}
+	if len(b2.Projects) != 1 {
+		t.Errorf("expected 1 project on second build, got %d", len(b2.Projects))
 	}
 }

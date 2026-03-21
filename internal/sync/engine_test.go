@@ -5,9 +5,11 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/xcoleman/pulse/internal/collector"
 	"github.com/xcoleman/pulse/internal/config"
+	"github.com/xcoleman/pulse/internal/domain"
 	"github.com/xcoleman/pulse/internal/store"
 	psync "github.com/xcoleman/pulse/internal/sync"
 )
@@ -112,5 +114,54 @@ func TestSyncEngine_OnlyMode(t *testing.T) {
 	}
 	if c2.called {
 		t.Error("expected docker collector NOT to be called")
+	}
+}
+
+func TestSyncEngine_OnlyMode_NotFound(t *testing.T) {
+	s := newTestStoreForSync(t)
+	cfg := &config.Config{Sync: config.SyncConfig{Timeout: "30s"}}
+
+	c1 := &fakeCollector{name: "git"}
+
+	engine := psync.NewEngine(s, cfg)
+	result := engine.RunOnly(context.Background(), []collector.Collector{c1}, "nonexistent")
+
+	if result.Status != "failed" {
+		t.Errorf("expected failed, got %s", result.Status)
+	}
+	if len(result.Errors) != 1 {
+		t.Errorf("expected 1 error, got %d", len(result.Errors))
+	}
+	if !c1.called {
+		// c1 should NOT be called since "nonexistent" was requested
+	}
+}
+
+func TestSyncEngine_PrunesBriefingHistory(t *testing.T) {
+	s := newTestStoreForSync(t)
+	cfg := &config.Config{Sync: config.SyncConfig{Timeout: "30s"}}
+	ctx := context.Background()
+
+	// Save an old briefing
+	s.SaveBriefing(ctx, domain.BriefingEntry{
+		CreatedAt: time.Now().Add(-60 * 24 * time.Hour),
+		Content:   "old",
+		Writer:    "test",
+	})
+	// Save a recent briefing
+	s.SaveBriefing(ctx, domain.BriefingEntry{
+		CreatedAt: time.Now(),
+		Content:   "recent",
+		Writer:    "test",
+	})
+
+	// Run sync — should prune old briefing
+	engine := psync.NewEngine(s, cfg)
+	engine.Run(ctx, []collector.Collector{&fakeCollector{name: "noop"}})
+
+	// Check that the old briefing was pruned
+	bt, _ := s.GetLastBriefingTime(ctx)
+	if bt.IsZero() {
+		t.Error("expected recent briefing to still exist")
 	}
 }

@@ -2,6 +2,7 @@ package collector
 
 import (
 	"context"
+	"fmt"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -54,8 +55,11 @@ func scanRepo(ctx context.Context, repo discovery.Repo) (domain.GitSnapshot, err
 		RepoName: repo.Name,
 	}
 
-	// Current branch
+	// Current branch — if HEAD can't be resolved, repo is unusable (e.g., no commits)
 	snap.Branch = gitOutput(ctx, repo.Path, "rev-parse", "--abbrev-ref", "HEAD")
+	if snap.Branch == "" {
+		return snap, fmt.Errorf("repo %s: cannot resolve HEAD (no commits?)", repo.Name)
+	}
 
 	// Dirty files count
 	status := gitOutput(ctx, repo.Path, "status", "--porcelain")

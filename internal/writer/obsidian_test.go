@@ -163,6 +163,34 @@ func TestObsidianWriter_GoldenFile(t *testing.T) {
 	}
 }
 
+func TestObsidianWriter_NestedDirectoryCreation(t *testing.T) {
+	dir := t.TempDir()
+
+	cfg := &config.Config{
+		Obsidian: config.ObsidianConfig{
+			VaultPath:      dir,
+			DailyNotePath:  "YYYY/MM/DD.md",
+			SectionHeading: "## Pulse Briefing",
+		},
+	}
+
+	w := writer.NewObsidianWriter()
+	err := w.Write(context.Background(), sampleBriefing(), cfg)
+	if err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	// Verify nested path was created
+	notePath := filepath.Join(dir, "2026", "03", "20.md")
+	content, err := os.ReadFile(notePath)
+	if err != nil {
+		t.Fatalf("expected note at nested path %s: %v", notePath, err)
+	}
+	if !strings.Contains(string(content), "### Projects") {
+		t.Error("expected markdown content in nested note")
+	}
+}
+
 func TestObsidianWriter_MissingConfig(t *testing.T) {
 	cfg := &config.Config{} // No obsidian config
 

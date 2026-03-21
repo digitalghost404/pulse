@@ -26,6 +26,11 @@ var configInitCmd = &cobra.Command{
 		if err := config.GenerateDefault(path); err != nil {
 			return err
 		}
+
+		jsonFlag, _ := cmd.Flags().GetBool("json")
+		if jsonFlag {
+			return jsonOut(map[string]string{"path": path, "status": "created"})
+		}
 		fmt.Printf("Config created at %s\n", path)
 		return nil
 	},
@@ -35,6 +40,16 @@ var configShowCmd = &cobra.Command{
 	Use:   "show",
 	Short: "Print current config",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		jsonFlag, _ := cmd.Flags().GetBool("json")
+
+		if jsonFlag {
+			cfg, err := loadConfig()
+			if err != nil {
+				return err
+			}
+			return jsonOut(cfg)
+		}
+
 		path := config.DefaultConfigPath()
 		data, err := os.ReadFile(path)
 		if err != nil {
@@ -54,21 +69,22 @@ var configAdaptersCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("%-15s %-10s %-10s %s\n", "ADAPTER", "ENABLED", "ENV OK", "ENV VARS")
-		fmt.Println(strings.Repeat("-", 60))
+		jsonFlag, _ := cmd.Flags().GetBool("json")
+
+		type adapterInfo struct {
+			Name    string   `json:"name"`
+			Enabled bool     `json:"enabled"`
+			EnvOK   string   `json:"env_ok"`
+			EnvVars []string `json:"env_vars,omitempty"`
+		}
+
+		var adapters []adapterInfo
 
 		for _, c := range collector.All() {
 			enabled := cfg.AdapterEnabled(c.Name())
-			enabledStr := "yes"
-			if !enabled {
-				enabledStr = "no"
-			}
-
 			envVars := c.EnvVars()
 			envOK := "n/a"
-			envList := "-"
 			if len(envVars) > 0 {
-				envList = strings.Join(envVars, ", ")
 				allSet := true
 				for _, v := range envVars {
 					if os.Getenv(v) == "" {
@@ -82,8 +98,31 @@ var configAdaptersCmd = &cobra.Command{
 					envOK = "MISSING"
 				}
 			}
+			adapters = append(adapters, adapterInfo{
+				Name:    c.Name(),
+				Enabled: enabled,
+				EnvOK:   envOK,
+				EnvVars: envVars,
+			})
+		}
 
-			fmt.Printf("%-15s %-10s %-10s %s\n", c.Name(), enabledStr, envOK, envList)
+		if jsonFlag {
+			return jsonOut(adapters)
+		}
+
+		fmt.Printf("%-15s %-10s %-10s %s\n", "ADAPTER", "ENABLED", "ENV OK", "ENV VARS")
+		fmt.Println(strings.Repeat("-", 60))
+
+		for _, a := range adapters {
+			enabledStr := "yes"
+			if !a.Enabled {
+				enabledStr = "no"
+			}
+			envList := "-"
+			if len(a.EnvVars) > 0 {
+				envList = strings.Join(a.EnvVars, ", ")
+			}
+			fmt.Printf("%-15s %-10s %-10s %s\n", a.Name, enabledStr, a.EnvOK, envList)
 		}
 		return nil
 	},

@@ -43,7 +43,11 @@ func renderCostsTab(cs domain.CostSummary, selected int, detail bool, width int)
 			if cs.TotalCents > 0 {
 				sb.WriteString(fmt.Sprintf("      Share:    %.0f%%\n", pct*100))
 			}
-			dailyRate := float64(sc.AmountCents) / 30.0 // approximate daily over period
+			// Use the overall burn rate to derive per-service daily rate
+			var dailyRate float64
+			if cs.TotalCents > 0 {
+				dailyRate = float64(cs.BurnRateCents) * pct
+			}
 			sb.WriteString(fmt.Sprintf("      Daily:    ~$%.2f/day\n", dailyRate/100))
 			sb.WriteString("\n")
 		}

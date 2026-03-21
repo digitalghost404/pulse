@@ -27,22 +27,14 @@ var rootCmd = &cobra.Command{
 	RunE:  runBriefing,
 }
 
+// exitCode allows commands to set a specific exit code (e.g., 2 for total sync failure).
+var exitCode = 1
+
 func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable debug output")
 	rootCmd.PersistentFlags().Bool("json", false, "Output as JSON")
 	rootCmd.Flags().String("since", "", "Show data since duration (e.g., 24h, 7d)")
-}
 
-// exitCode allows commands to set a specific exit code (e.g., 2 for total sync failure).
-var exitCode = 1
-
-func Execute() {
-	if err := rootCmd.Execute(); err != nil {
-		os.Exit(exitCode)
-	}
-}
-
-func init() {
 	// Set up verbose logging
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
 		if !verbose {
@@ -51,6 +43,12 @@ func init() {
 			log.SetOutput(os.Stderr)
 			log.SetFlags(log.Ltime)
 		}
+	}
+}
+
+func Execute() {
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(exitCode)
 	}
 }
 
@@ -93,16 +91,23 @@ func runBriefing(cmd *cobra.Command, args []string) error {
 	}
 
 	jsonFlag, _ := cmd.Flags().GetBool("json")
-	if jsonFlag {
-		enc := json.NewEncoder(os.Stdout)
-		enc.SetIndent("", "  ")
-		return enc.Encode(b)
-	}
 
 	// Render to buffer for both stdout and history
 	var rendered bytes.Buffer
 	w := writer.NewStdoutWriter(&rendered)
 	w.Write(cmd.Context(), b, cfg)
+
+	if jsonFlag {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		// Save history even for JSON output
+		s.SaveBriefing(cmd.Context(), domain.BriefingEntry{
+			CreatedAt: time.Now(),
+			Content:   rendered.String(),
+			Writer:    "stdout-json",
+		})
+		return enc.Encode(b)
+	}
 
 	// Write to stdout
 	fmt.Print(rendered.String())

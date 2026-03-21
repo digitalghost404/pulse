@@ -128,6 +128,50 @@ func TestCostEntryRoundTrip(t *testing.T) {
 	}
 }
 
+func TestCostEntryTimeFiltering(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	syncID, _ := s.CreateSyncRun(ctx)
+
+	now := time.Now().Truncate(time.Second)
+
+	// Old entry — period_end 10 days ago
+	old := domain.CostEntry{
+		Service: "voyage", PeriodStart: now.Add(-11 * 24 * time.Hour),
+		PeriodEnd: now.Add(-10 * 24 * time.Hour), AmountCents: 100, Currency: "USD",
+	}
+	// Recent entry — period_end 1 day ago
+	recent := domain.CostEntry{
+		Service: "claude", PeriodStart: now.Add(-2 * 24 * time.Hour),
+		PeriodEnd: now.Add(-1 * 24 * time.Hour), AmountCents: 500, Currency: "USD",
+	}
+
+	s.SaveCostEntry(ctx, syncID, old)
+	s.SaveCostEntry(ctx, syncID, recent)
+
+	// Query since 7 days ago — should only get the recent entry
+	entries, err := s.GetCostEntries(ctx, now.Add(-7*24*time.Hour))
+	if err != nil {
+		t.Fatalf("GetCostEntries: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry (filtered by time), got %d", len(entries))
+	}
+	if entries[0].Service != "claude" {
+		t.Errorf("expected claude, got %s", entries[0].Service)
+	}
+
+	// Query since 30 days ago — should get both
+	entries, err = s.GetCostEntries(ctx, now.Add(-30*24*time.Hour))
+	if err != nil {
+		t.Fatalf("GetCostEntries: %v", err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 entries (no filter), got %d", len(entries))
+	}
+}
+
 func TestBriefingHistoryPrune(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
