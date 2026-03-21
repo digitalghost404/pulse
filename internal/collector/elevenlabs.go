@@ -4,10 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/xcoleman/pulse/internal/config"
@@ -51,17 +49,17 @@ func (e *ElevenLabsCollector) Collect(ctx context.Context, s store.Store, cfg *c
 	}
 	req.Header.Set("xi-api-key", apiKey)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("fetching ElevenLabs usage: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("ElevenLabs API returned %d", resp.StatusCode)
+		return fmt.Errorf("ElevenLabs API returned %d (check ELEVENLABS_API_KEY)", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := limitedReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
@@ -84,6 +82,9 @@ func (e *ElevenLabsCollector) Collect(ctx context.Context, s store.Store, cfg *c
 		amountCents = int(totalChars / 1000 * float64(cfg.Costs.Pricing.ElevenLabsCentsPer1KChars))
 	}
 
+	// Build raw data as proper JSON combining usage and subscription info
+	rawData := e.buildRawData(ctx, apiKey, body)
+
 	entry := domain.CostEntry{
 		Service:       "elevenlabs",
 		PeriodStart:   now.Add(-24 * time.Hour),
@@ -92,13 +93,7 @@ func (e *ElevenLabsCollector) Collect(ctx context.Context, s store.Store, cfg *c
 		Currency:      "USD",
 		UsageQuantity: totalChars,
 		UsageUnit:     "characters",
-		RawData:       string(body),
-	}
-
-	// Also try to get the subscription info for quota context
-	subEntry, err := e.fetchSubscription(ctx, apiKey, now)
-	if err == nil && subEntry != nil {
-		entry.RawData = string(body) + "\n" + subEntry.RawData
+		RawData:       rawData,
 	}
 
 	return s.SaveCostEntry(ctx, syncID, entry)
@@ -111,14 +106,31 @@ type elevenLabsSubscription struct {
 	NextCharacterCountAt string `json:"next_character_count_reset_unix"`
 }
 
-func (e *ElevenLabsCollector) fetchSubscription(ctx context.Context, apiKey string, now time.Time) (*domain.CostEntry, error) {
+type elevenLabsRawData struct {
+	Usage        json.RawMessage         `json:"usage"`
+	Subscription *elevenLabsSubscription `json:"subscription,omitempty"`
+}
+
+func (e *ElevenLabsCollector) buildRawData(ctx context.Context, apiKey string, usageBody []byte) string {
+	raw := elevenLabsRawData{Usage: usageBody}
+
+	sub, err := e.fetchSubscription(ctx, apiKey)
+	if err == nil {
+		raw.Subscription = sub
+	}
+
+	data, _ := json.Marshal(raw)
+	return string(data)
+}
+
+func (e *ElevenLabsCollector) fetchSubscription(ctx context.Context, apiKey string) (*elevenLabsSubscription, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", "https://api.elevenlabs.io/v1/user/subscription", nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("xi-api-key", apiKey)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +140,7 @@ func (e *ElevenLabsCollector) fetchSubscription(ctx context.Context, apiKey stri
 		return nil, fmt.Errorf("ElevenLabs subscription API returned %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := limitedReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -138,9 +150,7 @@ func (e *ElevenLabsCollector) fetchSubscription(ctx context.Context, apiKey stri
 		return nil, err
 	}
 
-	return &domain.CostEntry{
-		RawData: `{"subscription":` + string(body) + `,"used":"` + strconv.FormatInt(sub.CharacterCount, 10) + `","limit":"` + strconv.FormatInt(sub.CharacterLimit, 10) + `"}`,
-	}, nil
+	return &sub, nil
 }
 
 func init() {

@@ -74,7 +74,9 @@ func readNumCPU() int {
 	count := 0
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		if strings.HasPrefix(scanner.Text(), "cpu") && scanner.Text() != "cpu " && !strings.HasPrefix(scanner.Text(), "cpu ") {
+		line := scanner.Text()
+		// Match "cpu0", "cpu1", etc. — not "cpu " (aggregate) or "cpufreq"
+		if strings.HasPrefix(line, "cpu") && len(line) > 3 && line[3] >= '0' && line[3] <= '9' {
 			count++
 		}
 	}

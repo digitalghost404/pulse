@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
@@ -78,8 +79,16 @@ func (c *ClaudeCollector) Collect(ctx context.Context, s store.Store, cfg *confi
 	var totalInputTokens, totalOutputTokens, totalCacheCreateTokens, totalCacheReadTokens int
 	modelUsage := make(map[string]*struct{ input, output int })
 
-	err = filepath.Walk(claudeDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".jsonl") {
+	err = filepath.WalkDir(claudeDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".jsonl") {
+			return nil
+		}
+		// Reject symlinks to prevent path traversal
+		if d.Type()&fs.ModeSymlink != 0 {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
 			return nil
 		}
 

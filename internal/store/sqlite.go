@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/xcoleman/pulse/internal/domain"
@@ -20,6 +22,21 @@ type SQLiteStore struct {
 }
 
 func NewSQLite(dbPath string) (*SQLiteStore, error) {
+	// Ensure directory exists with restrictive permissions
+	dir := filepath.Dir(dbPath)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return nil, fmt.Errorf("creating database directory: %w", err)
+	}
+
+	// Pre-create file with restrictive permissions if it doesn't exist
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		f, err := os.OpenFile(dbPath, os.O_CREATE|os.O_WRONLY, 0600)
+		if err != nil {
+			return nil, fmt.Errorf("creating database file: %w", err)
+		}
+		f.Close()
+	}
+
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("opening database: %w", err)
@@ -29,6 +46,12 @@ func NewSQLite(dbPath string) (*SQLiteStore, error) {
 	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("enabling WAL mode: %w", err)
+	}
+
+	// Set busy timeout for concurrent access (e.g., cron sync + manual briefing)
+	if _, err := db.Exec("PRAGMA busy_timeout = 5000"); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("setting busy timeout: %w", err)
 	}
 
 	s := &SQLiteStore{db: db}
@@ -42,7 +65,9 @@ func NewSQLite(dbPath string) (*SQLiteStore, error) {
 
 func (s *SQLiteStore) migrate() error {
 	// Ensure schema_version table exists
-	s.db.Exec("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)")
+	if _, err := s.db.Exec("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)"); err != nil {
+		return fmt.Errorf("creating schema_version table: %w", err)
+	}
 
 	var version int
 	err := s.db.QueryRow("SELECT COALESCE(MAX(version), 0) FROM schema_version").Scan(&version)
@@ -69,14 +94,24 @@ func (s *SQLiteStore) migrate() error {
 		if err != nil {
 			return fmt.Errorf("reading migration %s: %w", name, err)
 		}
-		if _, err := s.db.Exec(string(data)); err != nil {
+
+		// Run migration in a transaction for atomicity
+		tx, err := s.db.Begin()
+		if err != nil {
+			return fmt.Errorf("starting transaction for migration %s: %w", name, err)
+		}
+		if _, err := tx.Exec(string(data)); err != nil {
+			tx.Rollback()
 			return fmt.Errorf("executing migration %s: %w", name, err)
 		}
-		// Record the migration version (migration 001 also inserts via SQL, but future ones need this)
 		if migVersion > 1 {
-			if _, err := s.db.Exec("INSERT INTO schema_version (version) VALUES (?)", migVersion); err != nil {
+			if _, err := tx.Exec("INSERT INTO schema_version (version) VALUES (?)", migVersion); err != nil {
+				tx.Rollback()
 				return fmt.Errorf("recording migration version %d: %w", migVersion, err)
 			}
+		}
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("committing migration %s: %w", name, err)
 		}
 	}
 
@@ -128,16 +163,24 @@ func (s *SQLiteStore) SaveGitSnapshot(ctx context.Context, syncID int64, snap do
 }
 
 func (s *SQLiteStore) SaveGitBranches(ctx context.Context, syncID int64, branches []domain.GitBranch) error {
+	if len(branches) == 0 {
+		return nil
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
 	for _, b := range branches {
-		_, err := s.db.ExecContext(ctx,
+		_, err := tx.ExecContext(ctx,
 			`INSERT INTO git_branches (sync_id, repo_path, branch_name, last_commit_at, is_merged, is_current)
 			 VALUES (?, ?, ?, ?, ?, ?)`,
 			syncID, b.RepoPath, b.BranchName, b.LastCommitAt.UTC(), b.IsMerged, b.IsCurrent)
 		if err != nil {
+			tx.Rollback()
 			return err
 		}
 	}
-	return nil
+	return tx.Commit()
 }
 
 func (s *SQLiteStore) GetGitSnapshots(ctx context.Context, syncID int64) ([]domain.GitSnapshot, error) {
@@ -184,16 +227,24 @@ func (s *SQLiteStore) GetGitBranches(ctx context.Context, syncID int64, repoPath
 // --- GitHub ---
 
 func (s *SQLiteStore) SaveGitHubNotifications(ctx context.Context, syncID int64, notifs []domain.Notification) error {
+	if len(notifs) == 0 {
+		return nil
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
 	for _, n := range notifs {
-		_, err := s.db.ExecContext(ctx,
+		_, err := tx.ExecContext(ctx,
 			`INSERT INTO github_notifications (sync_id, repo_name, type, title, url, state, updated_at)
 			 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 			syncID, n.RepoName, n.Type, n.Title, n.URL, n.State, n.UpdatedAt.UTC())
 		if err != nil {
+			tx.Rollback()
 			return err
 		}
 	}
-	return nil
+	return tx.Commit()
 }
 
 func (s *SQLiteStore) GetGitHubNotifications(ctx context.Context, syncID int64) ([]domain.Notification, error) {
@@ -254,6 +305,9 @@ func (s *SQLiteStore) GetLatestCostEntry(ctx context.Context, service string) (*
 		`SELECT service, period_start, period_end, amount_cents, currency, usage_quantity, usage_unit, raw_data
 		 FROM cost_entries WHERE service = ? ORDER BY period_end DESC LIMIT 1`, service).
 		Scan(&e.Service, &e.PeriodStart, &e.PeriodEnd, &e.AmountCents, &e.Currency, &e.UsageQuantity, &e.UsageUnit, &e.RawData)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}

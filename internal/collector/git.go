@@ -3,6 +3,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"log"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -32,7 +33,8 @@ func (g *GitCollector) Collect(ctx context.Context, s store.Store, cfg *config.C
 	for _, repo := range repos {
 		snap, err := scanRepo(ctx, repo)
 		if err != nil {
-			continue // skip repos that fail
+			log.Printf("WARN: skipping repo %s: %v", repo.Name, err)
+			continue
 		}
 		if err := s.SaveGitSnapshot(ctx, syncID, snap); err != nil {
 			return err

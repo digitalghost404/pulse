@@ -25,6 +25,14 @@ func (w *ObsidianWriter) Write(ctx context.Context, b *domain.Briefing, cfg *con
 	}
 
 	notePath := cfg.ObsidianDailyNotePath(b.GeneratedAt)
+
+	// Validate resolved path stays within vault
+	absVault, _ := filepath.Abs(cfg.Obsidian.VaultPath)
+	absNote, _ := filepath.Abs(notePath)
+	if !strings.HasPrefix(absNote, absVault+string(filepath.Separator)) {
+		return fmt.Errorf("resolved note path %q escapes vault directory %q", absNote, absVault)
+	}
+
 	heading := cfg.Obsidian.SectionHeading
 	if heading == "" {
 		heading = "## Pulse Briefing"

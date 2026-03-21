@@ -124,10 +124,8 @@ func Load(path string) (*Config, error) {
 const defaultConfigTemplate = `# Pulse configuration
 projects:
   scan:
-    - ~/projects-wsl
-  ignore:
-    - voidterm-builds
-    - docs
+    - ~/projects
+  ignore: []
 
 github:
   username: ""
@@ -137,20 +135,22 @@ obsidian:
   daily_note_path: "Daily Notes/YYYY-MM-DD.md"
   section_heading: "## Pulse Briefing"
 
+# Claude Code cost tracking (reads local logs, no API key needed)
+# claude:
+#   subscription: ""          # "max" for fixed monthly, "" for API pricing
+#   monthly_cost_cents: 0     # e.g., 10000 = $100/mo for Max plan
+
 adapters:
   git: true
   github: true
   claude: true
-  voyage: true
   tavily: true
   elevenlabs: true
-  ollama: false
   docker: true
   system: true
 
 sync:
   timeout: 30s
-  # log_file: ~/.config/pulse/sync.log
 
 costs:
   default_period: 30d
@@ -158,12 +158,16 @@ costs:
   pricing:
     tavily_cents_per_request: 1        # $0.01/request (pay-as-you-go)
     elevenlabs_cents_per_1k_chars: 30  # $0.30/1k characters
+  # subscriptions:
+  #   - name: "Example Service"
+  #     service: "example"
+  #     monthly_cost_cents: 999       # $9.99/mo
 `
 
 func GenerateDefault(path string) error {
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return fmt.Errorf("creating config dir: %w", err)
 	}
-	return os.WriteFile(path, []byte(defaultConfigTemplate), 0644)
+	return os.WriteFile(path, []byte(defaultConfigTemplate), 0600)
 }

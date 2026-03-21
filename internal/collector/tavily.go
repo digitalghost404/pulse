@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"time"
@@ -62,17 +61,17 @@ func (t *TavilyCollector) Collect(ctx context.Context, s store.Store, cfg *confi
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("fetching Tavily usage: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Tavily API returned %d", resp.StatusCode)
+		return fmt.Errorf("Tavily API returned %d (check TAVILY_API_KEY)", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := limitedReadAll(resp.Body)
 	if err != nil {
 		return err
 	}

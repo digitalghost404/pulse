@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -40,17 +39,17 @@ func (g *GitHubCollector) Collect(ctx context.Context, s store.Store, cfg *confi
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept", "application/vnd.github+json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("fetching notifications: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("GitHub API returned %d", resp.StatusCode)
+		return fmt.Errorf("GitHub API returned %d (check GITHUB_TOKEN permissions)", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := limitedReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
@@ -95,8 +94,10 @@ func ParseGitHubNotification(data []byte) (domain.Notification, error) {
 
 	// Convert API URL to web URL
 	webURL := gh.Subject.URL
-	webURL = strings.Replace(webURL, "api.github.com/repos/", "github.com/", 1)
-	webURL = strings.Replace(webURL, "/pulls/", "/pull/", 1)
+	if webURL != "" {
+		webURL = strings.Replace(webURL, "api.github.com/repos/", "github.com/", 1)
+		webURL = strings.Replace(webURL, "/pulls/", "/pull/", 1)
+	}
 
 	return domain.Notification{
 		RepoName:  gh.Repository.FullName,

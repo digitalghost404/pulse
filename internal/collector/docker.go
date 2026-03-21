@@ -27,7 +27,7 @@ func (d *DockerCollector) Collect(ctx context.Context, s store.Store, cfg *confi
 		return nil // docker not installed, skip silently
 	}
 
-	cmd := exec.CommandContext(ctx, "docker", "ps", "-a", "--format", `{"Names":"{{.Names}}","Image":"{{.Image}}","Status":"{{.Status}}","Ports":"{{.Ports}}"}`)
+	cmd := exec.CommandContext(ctx, "docker", "ps", "-a", "--format", "json")
 	out, err := cmd.Output()
 	if err != nil {
 		return nil // docker not running, skip

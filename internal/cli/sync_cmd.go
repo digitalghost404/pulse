@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/xcoleman/pulse/internal/collector"
@@ -94,5 +95,5 @@ func collectorNames(collectors []collector.Collector) string {
 	for i, c := range collectors {
 		names[i] = c.Name()
 	}
-	return fmt.Sprint(names)
+	return strings.Join(names, ", ")
 }

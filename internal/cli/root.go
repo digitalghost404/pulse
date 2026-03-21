@@ -98,29 +98,33 @@ func runBriefing(cmd *cobra.Command, args []string) error {
 	// Render to buffer for both stdout and history
 	var rendered bytes.Buffer
 	w := writer.NewStdoutWriter(&rendered)
-	w.Write(cmd.Context(), b, cfg)
+	if err := w.Write(cmd.Context(), b, cfg); err != nil {
+		return fmt.Errorf("rendering briefing: %w", err)
+	}
 
 	if jsonFlag {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		// Save history even for JSON output
-		s.SaveBriefing(cmd.Context(), domain.BriefingEntry{
+		if err := s.SaveBriefing(cmd.Context(), domain.BriefingEntry{
 			CreatedAt: time.Now(),
 			Content:   rendered.String(),
 			Writer:    "stdout-json",
-		})
+		}); err != nil {
+			log.Printf("WARN: saving briefing history: %v", err)
+		}
 		return enc.Encode(b)
 	}
 
 	// Write to stdout
 	fmt.Print(rendered.String())
 
-	// Save history
-	s.SaveBriefing(cmd.Context(), domain.BriefingEntry{
+	if err := s.SaveBriefing(cmd.Context(), domain.BriefingEntry{
 		CreatedAt: time.Now(),
 		Content:   rendered.String(),
 		Writer:    "stdout",
-	})
+	}); err != nil {
+		log.Printf("WARN: saving briefing history: %v", err)
+	}
 
 	return nil
 }
@@ -133,7 +137,17 @@ func parseSinceDuration(s string) (time.Duration, error) {
 		if _, err := fmt.Sscanf(numStr, "%d", &days); err != nil {
 			return 0, err
 		}
+		if days <= 0 {
+			return 0, fmt.Errorf("days must be positive, got %d", days)
+		}
 		return time.Duration(days) * 24 * time.Hour, nil
 	}
-	return time.ParseDuration(s)
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return 0, err
+	}
+	if d <= 0 {
+		return 0, fmt.Errorf("duration must be positive, got %s", s)
+	}
+	return d, nil
 }
