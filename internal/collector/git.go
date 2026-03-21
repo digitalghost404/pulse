@@ -64,7 +64,11 @@ func scanRepo(ctx context.Context, repo discovery.Repo) (domain.GitSnapshot, err
 	// Dirty files count
 	status := gitOutput(ctx, repo.Path, "status", "--porcelain")
 	if status != "" {
-		snap.DirtyFiles = len(strings.Split(strings.TrimSpace(status), "\n"))
+		for _, line := range strings.Split(strings.TrimSpace(status), "\n") {
+			if line != "" {
+				snap.DirtyFiles++
+			}
+		}
 	}
 
 	// Ahead/behind

@@ -45,6 +45,11 @@ type tavilyUsageResponse struct {
 	} `json:"account"`
 }
 
+type tavilyRawData struct {
+	CumulativeUsage int `json:"cumulative_usage"`
+	DeltaUsage      int `json:"delta_usage"`
+}
+
 func (t *TavilyCollector) Collect(ctx context.Context, s store.Store, cfg *config.Config, syncID int64) error {
 	apiKey := os.Getenv("TAVILY_API_KEY")
 	if apiKey == "" {
@@ -77,11 +82,32 @@ func (t *TavilyCollector) Collect(ctx context.Context, s store.Store, cfg *confi
 		return fmt.Errorf("parsing Tavily usage: %w", err)
 	}
 
+	// Compute delta from last known cumulative usage
+	currentCumulative := usage.Key.Usage
+	deltaUsage := currentCumulative // default: treat full amount as delta (first run)
+
+	prev, err := s.GetLatestCostEntry(ctx, "tavily")
+	if err == nil && prev != nil {
+		var prevRaw tavilyRawData
+		if json.Unmarshal([]byte(prev.RawData), &prevRaw) == nil && prevRaw.CumulativeUsage > 0 {
+			delta := currentCumulative - prevRaw.CumulativeUsage
+			if delta >= 0 {
+				deltaUsage = delta
+			}
+			// If delta < 0, usage counter was reset (new billing cycle) — use full amount
+		}
+	}
+
 	now := time.Now()
 	amountCents := 0
 	if cfg.Costs.Pricing.TavilyCentsPerRequest > 0 {
-		amountCents = usage.Key.Usage * cfg.Costs.Pricing.TavilyCentsPerRequest
+		amountCents = deltaUsage * cfg.Costs.Pricing.TavilyCentsPerRequest
 	}
+
+	rawData, _ := json.Marshal(tavilyRawData{
+		CumulativeUsage: currentCumulative,
+		DeltaUsage:      deltaUsage,
+	})
 
 	entry := domain.CostEntry{
 		Service:       "tavily",
@@ -89,9 +115,9 @@ func (t *TavilyCollector) Collect(ctx context.Context, s store.Store, cfg *confi
 		PeriodEnd:     now,
 		AmountCents:   amountCents,
 		Currency:      "USD",
-		UsageQuantity: float64(usage.Key.Usage),
+		UsageQuantity: float64(deltaUsage),
 		UsageUnit:     "requests",
-		RawData:       string(body),
+		RawData:       string(rawData),
 	}
 
 	return s.SaveCostEntry(ctx, syncID, entry)

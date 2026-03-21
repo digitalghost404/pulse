@@ -248,6 +248,18 @@ func (s *SQLiteStore) GetCostEntries(ctx context.Context, since time.Time) ([]do
 	return result, rows.Err()
 }
 
+func (s *SQLiteStore) GetLatestCostEntry(ctx context.Context, service string) (*domain.CostEntry, error) {
+	var e domain.CostEntry
+	err := s.db.QueryRowContext(ctx,
+		`SELECT service, period_start, period_end, amount_cents, currency, usage_quantity, usage_unit, raw_data
+		 FROM cost_entries WHERE service = ? ORDER BY period_end DESC LIMIT 1`, service).
+		Scan(&e.Service, &e.PeriodStart, &e.PeriodEnd, &e.AmountCents, &e.Currency, &e.UsageQuantity, &e.UsageUnit, &e.RawData)
+	if err != nil {
+		return nil, err
+	}
+	return &e, nil
+}
+
 // --- Docker ---
 
 func (s *SQLiteStore) SaveDockerSnapshot(ctx context.Context, syncID int64, snap domain.DockerSnapshot) error {

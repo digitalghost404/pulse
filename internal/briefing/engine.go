@@ -3,6 +3,8 @@ package briefing
 import (
 	"context"
 	"fmt"
+	"log"
+	"sort"
 	"strings"
 	"time"
 
@@ -59,7 +61,10 @@ func (e *Engine) build(ctx context.Context, since time.Time) (*domain.Briefing, 
 		return nil, fmt.Errorf("reading git snapshots: %w", err)
 	}
 	for _, snap := range snapshots {
-		branches, _ := e.store.GetGitBranches(ctx, syncID, snap.RepoPath)
+		branches, err := e.store.GetGitBranches(ctx, syncID, snap.RepoPath)
+		if err != nil {
+			log.Printf("WARN: reading branches for %s: %v", snap.RepoName, err)
+		}
 		b.Projects = append(b.Projects, domain.ProjectSummary{
 			GitSnapshot: snap,
 			Branches:    branches,
@@ -67,21 +72,35 @@ func (e *Engine) build(ctx context.Context, since time.Time) (*domain.Briefing, 
 	}
 
 	// Notifications
-	b.Notifications, _ = e.store.GetGitHubNotifications(ctx, syncID)
+	notifs, err := e.store.GetGitHubNotifications(ctx, syncID)
+	if err != nil {
+		log.Printf("WARN: reading GitHub notifications: %v", err)
+	}
+	b.Notifications = notifs
 
 	// Costs — use since if provided, otherwise use config period
 	costSince := since
 	if costSince.IsZero() {
 		costSince = ParsePeriod(e.cfg.Costs.DefaultPeriod)
 	}
-	costEntries, _ := e.store.GetCostEntries(ctx, costSince)
+	costEntries, err := e.store.GetCostEntries(ctx, costSince)
+	if err != nil {
+		log.Printf("WARN: reading cost entries: %v", err)
+	}
 	b.CostSummary = buildCostSummary(costEntries, e.cfg.Costs.Currency, e.cfg.Costs.DefaultPeriod, costSince)
 
 	// Docker
-	b.Docker, _ = e.store.GetDockerSnapshots(ctx, syncID)
+	docker, err := e.store.GetDockerSnapshots(ctx, syncID)
+	if err != nil {
+		log.Printf("WARN: reading Docker snapshots: %v", err)
+	}
+	b.Docker = docker
 
 	// System
-	sys, _ := e.store.GetSystemSnapshot(ctx, syncID)
+	sys, err := e.store.GetSystemSnapshot(ctx, syncID)
+	if err != nil {
+		log.Printf("WARN: reading system snapshot: %v", err)
+	}
 	if sys != nil {
 		b.System = *sys
 	}
@@ -107,14 +126,21 @@ func buildCostSummary(entries []domain.CostEntry, currency, period string, since
 		summary.TotalCents += e.AmountCents
 	}
 
+	// Sort services alphabetically for deterministic output
 	for _, sc := range byService {
 		summary.ByService = append(summary.ByService, *sc)
 	}
+	sort.Slice(summary.ByService, func(i, j int) bool {
+		return summary.ByService[i].Service < summary.ByService[j].Service
+	})
 
-	// Burn rate: total cents / days in period string (e.g., "30d" → 30)
-	periodDays := parsePeriodDays(period)
-	if periodDays > 0 {
-		summary.BurnRateCents = int(float64(summary.TotalCents) / float64(periodDays))
+	// Burn rate: total cents / actual days of data (time from since to now)
+	actualDays := time.Since(since).Hours() / 24
+	if actualDays < 1 {
+		actualDays = 1
+	}
+	if summary.TotalCents > 0 {
+		summary.BurnRateCents = int(float64(summary.TotalCents) / actualDays)
 	}
 
 	return summary
@@ -139,19 +165,4 @@ func ParsePeriod(period string) time.Time {
 
 	// Default: 30 days
 	return time.Now().Add(-30 * 24 * time.Hour)
-}
-
-func parsePeriodDays(period string) int {
-	period = strings.TrimSpace(period)
-	if period == "" {
-		return 30
-	}
-	if strings.HasSuffix(period, "d") {
-		var days int
-		fmt.Sscanf(strings.TrimSuffix(period, "d"), "%d", &days)
-		if days > 0 {
-			return days
-		}
-	}
-	return 30
 }

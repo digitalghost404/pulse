@@ -25,7 +25,7 @@ func (s *SystemCollector) Enabled(cfg *config.Config) bool {
 func (s *SystemCollector) Collect(ctx context.Context, st store.Store, cfg *config.Config, syncID int64) error {
 	snap := domain.SystemSnapshot{}
 
-	// CPU from /proc/stat (snapshot — not a delta, but good enough for a point-in-time view)
+	// CPU from /proc/loadavg (1-minute load average, scaled to core count)
 	snap.CPUPct = readCPUPercent()
 
 	// Memory from /proc/meminfo
@@ -38,30 +38,50 @@ func (s *SystemCollector) Collect(ctx context.Context, st store.Store, cfg *conf
 }
 
 func readCPUPercent() float64 {
-	f, err := os.Open("/proc/stat")
+	// Use 1-minute load average scaled to number of CPU cores
+	loadAvg := readLoadAvg()
+	numCPU := readNumCPU()
+	if numCPU > 0 && loadAvg >= 0 {
+		pct := (loadAvg / float64(numCPU)) * 100
+		if pct > 100 {
+			pct = 100
+		}
+		return pct
+	}
+	return 0
+}
+
+func readLoadAvg() float64 {
+	data, err := os.ReadFile("/proc/loadavg")
 	if err != nil {
 		return 0
 	}
-	defer f.Close()
-
-	scanner := bufio.NewScanner(f)
-	if scanner.Scan() {
-		line := scanner.Text()
-		if strings.HasPrefix(line, "cpu ") {
-			fields := strings.Fields(line)
-			if len(fields) >= 5 {
-				user, _ := strconv.ParseFloat(fields[1], 64)
-				nice, _ := strconv.ParseFloat(fields[2], 64)
-				system, _ := strconv.ParseFloat(fields[3], 64)
-				idle, _ := strconv.ParseFloat(fields[4], 64)
-				total := user + nice + system + idle
-				if total > 0 {
-					return (total - idle) / total * 100
-				}
-			}
-		}
+	fields := strings.Fields(string(data))
+	if len(fields) >= 1 {
+		val, _ := strconv.ParseFloat(fields[0], 64)
+		return val
 	}
 	return 0
+}
+
+func readNumCPU() int {
+	f, err := os.Open("/proc/stat")
+	if err != nil {
+		return 1
+	}
+	defer f.Close()
+
+	count := 0
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		if strings.HasPrefix(scanner.Text(), "cpu") && scanner.Text() != "cpu " && !strings.HasPrefix(scanner.Text(), "cpu ") {
+			count++
+		}
+	}
+	if count == 0 {
+		return 1
+	}
+	return count
 }
 
 func readMemory() (totalMB, usedMB float64) {

@@ -27,8 +27,8 @@ var rootCmd = &cobra.Command{
 	RunE:  runBriefing,
 }
 
-// exitCode allows commands to set a specific exit code (e.g., 2 for total sync failure).
-var exitCode = 1
+// exitCode allows commands to set a specific exit code (e.g., 1 for partial sync, 2 for total failure).
+var exitCode int
 
 func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable debug output")
@@ -48,6 +48,9 @@ func init() {
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
+		if exitCode == 0 {
+			exitCode = 1
+		}
 		os.Exit(exitCode)
 	}
 }

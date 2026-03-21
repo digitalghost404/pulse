@@ -29,6 +29,7 @@ type Store interface {
 	GetGitBranches(ctx context.Context, syncID int64, repoPath string) ([]domain.GitBranch, error)
 	GetGitHubNotifications(ctx context.Context, syncID int64) ([]domain.Notification, error)
 	GetCostEntries(ctx context.Context, since time.Time) ([]domain.CostEntry, error)
+	GetLatestCostEntry(ctx context.Context, service string) (*domain.CostEntry, error)
 	GetDockerSnapshots(ctx context.Context, syncID int64) ([]domain.DockerSnapshot, error)
 	GetSystemSnapshot(ctx context.Context, syncID int64) (*domain.SystemSnapshot, error)
 	GetLastBriefingTime(ctx context.Context) (time.Time, error)

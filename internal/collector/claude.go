@@ -88,20 +88,22 @@ func (c *ClaudeCollector) Collect(ctx context.Context, s store.Store, cfg *confi
 			return nil
 		}
 
-		input, output, cacheCreate, cacheRead, model := parseJSONLFile(path, since)
-		totalInputTokens += input
-		totalOutputTokens += output
-		totalCacheCreateTokens += cacheCreate
-		totalCacheReadTokens += cacheRead
+		entries := parseJSONLFile(path, since)
+		for _, e := range entries {
+			totalInputTokens += e.inputTokens
+			totalOutputTokens += e.outputTokens
+			totalCacheCreateTokens += e.cacheCreate
+			totalCacheReadTokens += e.cacheRead
 
-		if model != "" {
-			mu, ok := modelUsage[model]
-			if !ok {
-				mu = &struct{ input, output int }{}
-				modelUsage[model] = mu
+			if e.model != "" {
+				mu, ok := modelUsage[e.model]
+				if !ok {
+					mu = &struct{ input, output int }{}
+					modelUsage[e.model] = mu
+				}
+				mu.input += e.inputTokens + e.cacheCreate + e.cacheRead
+				mu.output += e.outputTokens
 			}
-			mu.input += input + cacheCreate + cacheRead
-			mu.output += output
 		}
 
 		return nil
@@ -162,13 +164,22 @@ func (c *ClaudeCollector) Collect(ctx context.Context, s store.Store, cfg *confi
 	return s.SaveCostEntry(ctx, syncID, entry)
 }
 
-func parseJSONLFile(path string, since time.Time) (inputTokens, outputTokens, cacheCreate, cacheRead int, model string) {
+type parsedUsageEntry struct {
+	model       string
+	inputTokens int
+	outputTokens int
+	cacheCreate int
+	cacheRead   int
+}
+
+func parseJSONLFile(path string, since time.Time) []parsedUsageEntry {
 	f, err := os.Open(path)
 	if err != nil {
-		return
+		return nil
 	}
 	defer f.Close()
 
+	var results []parsedUsageEntry
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024) // 1MB buffer for large lines
 
@@ -189,19 +200,22 @@ func parseJSONLFile(path string, since time.Time) (inputTokens, outputTokens, ca
 			continue
 		}
 
-		// Use the model from the most recent entry
-		if entry.Message.Model != "" {
-			model = entry.Message.Model
+		// Skip entries outside the time window
+		if !entry.Timestamp.IsZero() && entry.Timestamp.Before(since) {
+			continue
 		}
 
 		u := entry.Message.Usage
-		inputTokens += u.InputTokens
-		outputTokens += u.OutputTokens
-		cacheCreate += u.CacheCreationInputTokens
-		cacheRead += u.CacheReadInputTokens
+		results = append(results, parsedUsageEntry{
+			model:       entry.Message.Model,
+			inputTokens: u.InputTokens,
+			outputTokens: u.OutputTokens,
+			cacheCreate: u.CacheCreationInputTokens,
+			cacheRead:   u.CacheReadInputTokens,
+		})
 	}
 
-	return
+	return results
 }
 
 func init() {

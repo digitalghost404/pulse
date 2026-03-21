@@ -55,15 +55,14 @@ func runObsidian(cmd *cobra.Command, args []string) error {
 
 	jsonFlag, _ := cmd.Flags().GetBool("json")
 	if jsonFlag {
-		// Save history even for JSON output
+		encoded, _ := json.MarshalIndent(b, "", "  ")
 		s.SaveBriefing(cmd.Context(), domain.BriefingEntry{
 			CreatedAt: time.Now(),
-			Content:   b.GeneratedAt.Format(time.RFC3339),
+			Content:   string(encoded),
 			Writer:    "obsidian-json",
 		})
-		enc := json.NewEncoder(os.Stdout)
-		enc.SetIndent("", "  ")
-		return enc.Encode(b)
+		_, err := os.Stdout.Write(append(encoded, '\n'))
+		return err
 	}
 
 	w := writer.NewObsidianWriter()

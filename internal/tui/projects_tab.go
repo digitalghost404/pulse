@@ -26,11 +26,18 @@ func renderProjectsTab(projects []domain.ProjectSummary, selected int, detail bo
 
 		sb.WriteString(fmt.Sprintf("%s%s %s (%s)", cursor, icon, p.RepoName, p.Branch))
 
+		var details []string
 		if p.DirtyFiles > 0 {
-			sb.WriteString(fmt.Sprintf(" — %d dirty", p.DirtyFiles))
+			details = append(details, fmt.Sprintf("%d dirty", p.DirtyFiles))
 		}
 		if p.Ahead > 0 {
-			sb.WriteString(fmt.Sprintf(", %d ahead", p.Ahead))
+			details = append(details, fmt.Sprintf("%d ahead", p.Ahead))
+		}
+		if p.Behind > 0 {
+			details = append(details, fmt.Sprintf("%d behind", p.Behind))
+		}
+		if len(details) > 0 {
+			sb.WriteString(" — " + strings.Join(details, ", "))
 		}
 		sb.WriteString("\n")
 
