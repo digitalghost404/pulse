@@ -45,8 +45,16 @@ type SyncConfig struct {
 }
 
 type CostsConfig struct {
-	DefaultPeriod string `mapstructure:"default_period"`
-	Currency      string `mapstructure:"currency"`
+	DefaultPeriod string               `mapstructure:"default_period"`
+	Currency      string               `mapstructure:"currency"`
+	Subscriptions []SubscriptionConfig `mapstructure:"subscriptions"`
+}
+
+type SubscriptionConfig struct {
+	Name             string `mapstructure:"name"`              // display name (e.g., "Google One Premium")
+	Service          string `mapstructure:"service"`           // service key (e.g., "google-one")
+	MonthlyCostCents int    `mapstructure:"monthly_cost_cents"` // cost in cents (e.g., 2499 = $24.99)
+	Notes            string `mapstructure:"notes"`             // optional description
 }
 
 // AdapterEnabled returns whether an adapter is enabled. Unlisted adapters default to enabled.
