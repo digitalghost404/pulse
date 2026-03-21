@@ -132,8 +132,8 @@ func TestSyncEngine_OnlyMode_NotFound(t *testing.T) {
 	if len(result.Errors) != 1 {
 		t.Errorf("expected 1 error, got %d", len(result.Errors))
 	}
-	if !c1.called {
-		// c1 should NOT be called since "nonexistent" was requested
+	if c1.called {
+		t.Error("expected git collector NOT to be called when 'nonexistent' was requested")
 	}
 }
 
