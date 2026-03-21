@@ -67,10 +67,20 @@ func runCosts(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Costs (%s)\n\n", cs.Period)
 	for _, sc := range cs.ByService {
-		fmt.Printf("  %s: $%.2f\n", sc.Service, float64(sc.AmountCents)/100)
+		if sc.AmountCents > 0 {
+			fmt.Printf("  %s: $%.2f", sc.Service, float64(sc.AmountCents)/100)
+		} else {
+			fmt.Printf("  %s:", sc.Service)
+		}
+		if sc.UsageQuantity > 0 {
+			fmt.Printf(" (%.0f %s)", sc.UsageQuantity, sc.UsageUnit)
+		}
+		fmt.Println()
 	}
-	fmt.Printf("\n  Total: $%.2f — Burn: $%.2f/day\n",
-		float64(cs.TotalCents)/100, float64(cs.BurnRateCents)/100)
+	if cs.TotalCents > 0 {
+		fmt.Printf("\n  Total: $%.2f — Burn: $%.2f/day\n",
+			float64(cs.TotalCents)/100, float64(cs.BurnRateCents)/100)
+	}
 
 	return nil
 }

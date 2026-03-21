@@ -111,10 +111,10 @@ func buildCostSummary(entries []domain.CostEntry, currency, period string, since
 		summary.ByService = append(summary.ByService, *sc)
 	}
 
-	// Burn rate: total cents / days in period
-	days := time.Since(since).Hours() / 24
-	if days > 0 {
-		summary.BurnRateCents = int(float64(summary.TotalCents) / days)
+	// Burn rate: total cents / days in period string (e.g., "30d" → 30)
+	periodDays := parsePeriodDays(period)
+	if periodDays > 0 {
+		summary.BurnRateCents = int(float64(summary.TotalCents) / float64(periodDays))
 	}
 
 	return summary
@@ -139,4 +139,19 @@ func ParsePeriod(period string) time.Time {
 
 	// Default: 30 days
 	return time.Now().Add(-30 * 24 * time.Hour)
+}
+
+func parsePeriodDays(period string) int {
+	period = strings.TrimSpace(period)
+	if period == "" {
+		return 30
+	}
+	if strings.HasSuffix(period, "d") {
+		var days int
+		fmt.Sscanf(strings.TrimSuffix(period, "d"), "%d", &days)
+		if days > 0 {
+			return days
+		}
+	}
+	return 30
 }
