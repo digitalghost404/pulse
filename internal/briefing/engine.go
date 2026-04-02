@@ -87,7 +87,16 @@ func (e *Engine) build(ctx context.Context, since time.Time) (*domain.Briefing, 
 	if err != nil {
 		log.Printf("WARN: reading cost entries: %v", err)
 	}
-	b.CostSummary = buildCostSummary(costEntries, e.cfg.Costs.Currency, e.cfg.Costs.DefaultPeriod, costSince)
+	// Build set of subscription-covered services to exclude from burn rate.
+	// These are fixed-cost services where usage doesn't affect the bill.
+	subServices := make(map[string]bool)
+	if e.cfg.Claude.Subscription != "" || e.cfg.Claude.MonthlyCostCents > 0 {
+		subServices["claude"] = true
+	}
+	for _, s := range e.cfg.Costs.Subscriptions {
+		subServices[strings.ToLower(s.Service)] = true
+	}
+	b.CostSummary = buildCostSummary(costEntries, e.cfg.Costs.Currency, e.cfg.Costs.DefaultPeriod, costSince, subServices)
 
 	// Docker
 	docker, err := e.store.GetDockerSnapshots(ctx, syncID)
@@ -108,7 +117,7 @@ func (e *Engine) build(ctx context.Context, since time.Time) (*domain.Briefing, 
 	return b, nil
 }
 
-func buildCostSummary(entries []domain.CostEntry, currency, period string, since time.Time) domain.CostSummary {
+func buildCostSummary(entries []domain.CostEntry, currency, period string, since time.Time, subscriptionServices map[string]bool) domain.CostSummary {
 	summary := domain.CostSummary{
 		Currency: currency,
 		Period:   period,
@@ -134,13 +143,19 @@ func buildCostSummary(entries []domain.CostEntry, currency, period string, since
 		return summary.ByService[i].Service < summary.ByService[j].Service
 	})
 
-	// Burn rate: total cents / actual days of data (time from since to now)
+	// Burn rate: only count usage-based (non-subscription) costs
+	var burnableCents int
+	for _, sc := range summary.ByService {
+		if !subscriptionServices[strings.ToLower(sc.Service)] {
+			burnableCents += sc.AmountCents
+		}
+	}
 	actualDays := time.Since(since).Hours() / 24
 	if actualDays < 1 {
 		actualDays = 1
 	}
-	if summary.TotalCents > 0 {
-		summary.BurnRateCents = int(float64(summary.TotalCents) / actualDays)
+	if burnableCents > 0 {
+		summary.BurnRateCents = int(float64(burnableCents) / actualDays)
 	}
 
 	return summary
