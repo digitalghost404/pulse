@@ -1,3 +1,4 @@
+// Package domain defines Pulse's core data types and collector interfaces.
 package domain
 
 import "time"

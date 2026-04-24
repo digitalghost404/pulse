@@ -1,3 +1,4 @@
+// Package store provides SQLite-backed persistence for Pulse collector data.
 package store
 
 import (

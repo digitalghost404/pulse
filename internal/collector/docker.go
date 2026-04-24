@@ -105,7 +105,7 @@ func ParsePercent(s string) float64 {
 	return v
 }
 
-// parseMemoryMB parses "123.4MiB / 1.5GiB" to 123.4
+// ParseMemoryMB parses "123.4MiB / 1.5GiB" to 123.4.
 func ParseMemoryMB(s string) float64 {
 	parts := strings.Split(s, "/")
 	if len(parts) == 0 {

@@ -1,3 +1,4 @@
+// Package config handles Pulse configuration loading and validation.
 package config
 
 import (
