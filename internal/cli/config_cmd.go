@@ -1,3 +1,4 @@
+// Package cli provides Cobra commands for the Pulse CLI.
 package cli
 
 import (
