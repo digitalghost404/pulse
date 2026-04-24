@@ -1,3 +1,4 @@
+// Package collector implements data collection from external services and system sources.
 package collector
 
 import (
