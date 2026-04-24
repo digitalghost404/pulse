@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -367,6 +368,151 @@ func (s *SQLiteStore) GetSystemSnapshot(ctx context.Context, syncID int64) (*dom
 		return nil, err
 	}
 	return &snap, nil
+}
+
+// --- Hardware ---
+
+func (s *SQLiteStore) SaveHardwareSnapshot(ctx context.Context, syncID int64, snap domain.HardwareSnapshot) error {
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO hardware_snapshots (sync_id, gpu_name, gpu_util_pct, gpu_mem_used_mb, gpu_mem_total_mb, gpu_temp_c, gpu_power_watts, gpu_fan_speed_pct, cpu_temp_c, cpu_freq_mhz, cpu_throttled, battery_pct, battery_status, battery_watts, package_power_watts, dram_power_watts)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		syncID, snap.GPUName, snap.GPUUtilPct, snap.GPUMemUsedMB, snap.GPUMemTotalMB, snap.GPUTempC,
+		snap.GPUPowerWatts, snap.GPUFanSpeedPct, snap.CPUTempC, snap.CPUFreqMHz, snap.CPUThrottled,
+		snap.BatteryPct, snap.BatteryStatus, snap.BatteryWatts, snap.PackagePowerWatts, snap.DRAMPowerWatts)
+	return err
+}
+
+func (s *SQLiteStore) GetHardwareSnapshot(ctx context.Context, syncID int64) (*domain.HardwareSnapshot, error) {
+	var snap domain.HardwareSnapshot
+	err := s.db.QueryRowContext(ctx,
+		`SELECT gpu_name, gpu_util_pct, gpu_mem_used_mb, gpu_mem_total_mb, gpu_temp_c, gpu_power_watts, gpu_fan_speed_pct, cpu_temp_c, cpu_freq_mhz, cpu_throttled, battery_pct, battery_status, battery_watts, package_power_watts, dram_power_watts
+		 FROM hardware_snapshots WHERE sync_id = ?`, syncID).
+		Scan(&snap.GPUName, &snap.GPUUtilPct, &snap.GPUMemUsedMB, &snap.GPUMemTotalMB, &snap.GPUTempC,
+			&snap.GPUPowerWatts, &snap.GPUFanSpeedPct, &snap.CPUTempC, &snap.CPUFreqMHz, &snap.CPUThrottled,
+			&snap.BatteryPct, &snap.BatteryStatus, &snap.BatteryWatts, &snap.PackagePowerWatts, &snap.DRAMPowerWatts)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &snap, nil
+}
+
+// --- Network ---
+
+func (s *SQLiteStore) SaveNetworkSnapshot(ctx context.Context, syncID int64, snap domain.NetworkSnapshot) error {
+	interfacesJSON, err := json.Marshal(snap.Interfaces)
+	if err != nil {
+		return fmt.Errorf("marshal interfaces: %w", err)
+	}
+
+	_, err = s.db.ExecContext(ctx,
+		`INSERT INTO network_snapshots (sync_id, active_interface, connection_type, vpn_active, vpn_provider, wifi_ssid, wifi_signal_dbm, wifi_band, interfaces)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		syncID, snap.ActiveInterface, snap.ConnectionType, snap.VPNActive, snap.VPNProvider,
+		snap.WiFiSSID, snap.WiFiSignalDBM, snap.WiFiBand, string(interfacesJSON))
+	return err
+}
+
+func (s *SQLiteStore) GetNetworkSnapshot(ctx context.Context, syncID int64) (*domain.NetworkSnapshot, error) {
+	var snap domain.NetworkSnapshot
+	var interfacesJSON string
+	err := s.db.QueryRowContext(ctx,
+		`SELECT active_interface, connection_type, vpn_active, vpn_provider, wifi_ssid, wifi_signal_dbm, wifi_band, interfaces
+		 FROM network_snapshots WHERE sync_id = ?`, syncID).
+		Scan(&snap.ActiveInterface, &snap.ConnectionType, &snap.VPNActive, &snap.VPNProvider,
+			&snap.WiFiSSID, &snap.WiFiSignalDBM, &snap.WiFiBand, &interfacesJSON)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if interfacesJSON != "" {
+		if err := json.Unmarshal([]byte(interfacesJSON), &snap.Interfaces); err != nil {
+			return nil, fmt.Errorf("unmarshal interfaces: %w", err)
+		}
+	}
+	return &snap, nil
+}
+
+// --- Storage ---
+
+func (s *SQLiteStore) SaveStorageHealth(ctx context.Context, syncID int64, health domain.StorageHealth) error {
+	drivesJSON, err := json.Marshal(health.Drives)
+	if err != nil {
+		return fmt.Errorf("marshal drives: %w", err)
+	}
+
+	_, err = s.db.ExecContext(ctx,
+		`INSERT INTO storage_health (sync_id, drives) VALUES (?, ?)`,
+		syncID, string(drivesJSON))
+	return err
+}
+
+func (s *SQLiteStore) GetStorageHealth(ctx context.Context, syncID int64) (*domain.StorageHealth, error) {
+	var health domain.StorageHealth
+	var drivesJSON string
+	err := s.db.QueryRowContext(ctx,
+		`SELECT drives FROM storage_health WHERE sync_id = ?`, syncID).
+		Scan(&drivesJSON)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if drivesJSON != "" {
+		if err := json.Unmarshal([]byte(drivesJSON), &health.Drives); err != nil {
+			return nil, fmt.Errorf("unmarshal drives: %w", err)
+		}
+	}
+	return &health, nil
+}
+
+// --- Journal ---
+
+func (s *SQLiteStore) SaveJournalAlerts(ctx context.Context, syncID int64, alerts []domain.JournalAlert) error {
+	if len(alerts) == 0 {
+		return nil
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	for _, alert := range alerts {
+		_, err := tx.ExecContext(ctx,
+			`INSERT INTO journal_alerts (sync_id, timestamp, unit, priority, message, category)
+			 VALUES (?, ?, ?, ?, ?, ?)`,
+			syncID, alert.Timestamp.UTC(), alert.Unit, alert.Priority, alert.Message, alert.Category)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+func (s *SQLiteStore) GetJournalAlerts(ctx context.Context, syncID int64) ([]domain.JournalAlert, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT timestamp, unit, priority, message, category
+		 FROM journal_alerts WHERE sync_id = ? ORDER BY id ASC`, syncID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []domain.JournalAlert
+	for rows.Next() {
+		var alert domain.JournalAlert
+		if err := rows.Scan(&alert.Timestamp, &alert.Unit, &alert.Priority, &alert.Message, &alert.Category); err != nil {
+			return nil, err
+		}
+		result = append(result, alert)
+	}
+	return result, rows.Err()
 }
 
 // --- Briefing History ---

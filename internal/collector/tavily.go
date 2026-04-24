@@ -68,7 +68,7 @@ func (t *TavilyCollector) Collect(ctx context.Context, s store.Store, cfg *confi
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Tavily API returned %d (check TAVILY_API_KEY)", resp.StatusCode)
+		return fmt.Errorf("tavily API returned %d (check TAVILY_API_KEY)", resp.StatusCode)
 	}
 
 	body, err := limitedReadAll(resp.Body)

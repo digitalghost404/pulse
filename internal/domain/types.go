@@ -65,6 +65,71 @@ type SystemSnapshot struct {
 	DiskTotalGB   float64
 }
 
+type HardwareSnapshot struct {
+	GPUName           string
+	GPUUtilPct        float64
+	GPUMemUsedMB      float64
+	GPUMemTotalMB     float64
+	GPUTempC          int
+	GPUPowerWatts     float64
+	GPUFanSpeedPct    int
+	CPUTempC          int
+	CPUFreqMHz        int
+	CPUThrottled      bool
+	BatteryPct        int
+	BatteryStatus     string
+	BatteryWatts      float64
+	PackagePowerWatts float64
+	DRAMPowerWatts    float64
+}
+
+type NetworkSnapshot struct {
+	Interfaces      []InterfaceStats
+	ActiveInterface string
+	ConnectionType  string
+	VPNActive       bool
+	VPNProvider     string
+	WiFiSSID        string
+	WiFiSignalDBM   int
+	WiFiBand        string
+}
+
+type InterfaceStats struct {
+	Name        string
+	State       string
+	RxBytes     uint64
+	TxBytes     uint64
+	RxBytesRate float64
+	TxBytesRate float64
+	RxErrors    uint64
+	TxErrors    uint64
+	RxDropped   uint64
+}
+
+type StorageHealth struct {
+	Drives []DriveHealth
+}
+
+type DriveHealth struct {
+	Device         string
+	Model          string
+	Temperature    int
+	PowerOnHours   int
+	WearLevelPct   int
+	ReallocSectors int
+	HealthStatus   string
+	HealthScore    int
+	Alert          string
+}
+
+type JournalAlert struct {
+	Timestamp time.Time
+	Unit      string
+	Priority  int
+	Message   string
+	Category  string
+}
+
 // SyncRun represents a single sync execution.
 type SyncRun struct {
 	ID          int64
@@ -90,6 +155,10 @@ type Briefing struct {
 	CostSummary   CostSummary
 	Docker        []DockerSnapshot
 	System        SystemSnapshot
+	Hardware      HardwareSnapshot
+	Network       NetworkSnapshot
+	Storage       StorageHealth
+	JournalAlerts []JournalAlert
 }
 
 // ProjectSummary combines git snapshot with branch info for display.

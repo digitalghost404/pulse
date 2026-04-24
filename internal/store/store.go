@@ -20,6 +20,10 @@ type Store interface {
 	SaveCostEntry(ctx context.Context, syncID int64, entry domain.CostEntry) error
 	SaveDockerSnapshot(ctx context.Context, syncID int64, snapshot domain.DockerSnapshot) error
 	SaveSystemSnapshot(ctx context.Context, syncID int64, snapshot domain.SystemSnapshot) error
+	SaveHardwareSnapshot(ctx context.Context, syncID int64, snapshot domain.HardwareSnapshot) error
+	SaveNetworkSnapshot(ctx context.Context, syncID int64, snapshot domain.NetworkSnapshot) error
+	SaveStorageHealth(ctx context.Context, syncID int64, health domain.StorageHealth) error
+	SaveJournalAlerts(ctx context.Context, syncID int64, alerts []domain.JournalAlert) error
 	SaveGitHubNotifications(ctx context.Context, syncID int64, notifs []domain.Notification) error
 	SaveBriefing(ctx context.Context, entry domain.BriefingEntry) error
 
@@ -32,6 +36,10 @@ type Store interface {
 	GetLatestCostEntry(ctx context.Context, service string) (*domain.CostEntry, error)
 	GetDockerSnapshots(ctx context.Context, syncID int64) ([]domain.DockerSnapshot, error)
 	GetSystemSnapshot(ctx context.Context, syncID int64) (*domain.SystemSnapshot, error)
+	GetHardwareSnapshot(ctx context.Context, syncID int64) (*domain.HardwareSnapshot, error)
+	GetNetworkSnapshot(ctx context.Context, syncID int64) (*domain.NetworkSnapshot, error)
+	GetStorageHealth(ctx context.Context, syncID int64) (*domain.StorageHealth, error)
+	GetJournalAlerts(ctx context.Context, syncID int64) ([]domain.JournalAlert, error)
 	GetLastBriefingTime(ctx context.Context) (time.Time, error)
 
 	// Maintenance

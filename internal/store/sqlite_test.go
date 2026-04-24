@@ -265,6 +265,184 @@ func TestSystemSnapshotRoundTrip(t *testing.T) {
 	}
 }
 
+func TestHardwareSnapshotRoundTrip(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	syncID, _ := s.CreateSyncRun(ctx)
+
+	snap := domain.HardwareSnapshot{
+		GPUName:           "RTX 4090",
+		GPUUtilPct:        42.5,
+		GPUMemUsedMB:      8192,
+		GPUMemTotalMB:     24576,
+		GPUTempC:          67,
+		GPUPowerWatts:     285.4,
+		GPUFanSpeedPct:    58,
+		CPUTempC:          72,
+		CPUFreqMHz:        5100,
+		CPUThrottled:      false,
+		BatteryPct:        93,
+		BatteryStatus:     "discharging",
+		BatteryWatts:      24.1,
+		PackagePowerWatts: 118.6,
+		DRAMPowerWatts:    12.3,
+	}
+
+	if err := s.SaveHardwareSnapshot(ctx, syncID, snap); err != nil {
+		t.Fatalf("SaveHardwareSnapshot: %v", err)
+	}
+
+	got, err := s.GetHardwareSnapshot(ctx, syncID)
+	if err != nil {
+		t.Fatalf("GetHardwareSnapshot: %v", err)
+	}
+	if got == nil {
+		t.Fatal("expected non-nil hardware snapshot")
+	}
+	if got.GPUName != snap.GPUName {
+		t.Errorf("expected GPU %s, got %s", snap.GPUName, got.GPUName)
+	}
+	if got.PackagePowerWatts != snap.PackagePowerWatts {
+		t.Errorf("expected package power %f, got %f", snap.PackagePowerWatts, got.PackagePowerWatts)
+	}
+}
+
+func TestNetworkSnapshotRoundTrip(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	syncID, _ := s.CreateSyncRun(ctx)
+
+	snap := domain.NetworkSnapshot{
+		ActiveInterface: "wlan0",
+		ConnectionType:  "wifi",
+		VPNActive:       true,
+		VPNProvider:     "tailscale",
+		WiFiSSID:        "pulse-lab",
+		WiFiSignalDBM:   -58,
+		WiFiBand:        "5GHz",
+		Interfaces: []domain.InterfaceStats{
+			{
+				Name:        "wlan0",
+				State:       "up",
+				RxBytes:     1024,
+				TxBytes:     2048,
+				RxBytesRate: 128.5,
+				TxBytesRate: 64.25,
+				RxErrors:    1,
+				TxErrors:    0,
+				RxDropped:   2,
+			},
+		},
+	}
+
+	if err := s.SaveNetworkSnapshot(ctx, syncID, snap); err != nil {
+		t.Fatalf("SaveNetworkSnapshot: %v", err)
+	}
+
+	got, err := s.GetNetworkSnapshot(ctx, syncID)
+	if err != nil {
+		t.Fatalf("GetNetworkSnapshot: %v", err)
+	}
+	if got == nil {
+		t.Fatal("expected non-nil network snapshot")
+	}
+	if got.ActiveInterface != snap.ActiveInterface {
+		t.Errorf("expected active interface %s, got %s", snap.ActiveInterface, got.ActiveInterface)
+	}
+	if len(got.Interfaces) != 1 {
+		t.Fatalf("expected 1 interface, got %d", len(got.Interfaces))
+	}
+	if got.Interfaces[0].TxBytes != snap.Interfaces[0].TxBytes {
+		t.Errorf("expected tx bytes %d, got %d", snap.Interfaces[0].TxBytes, got.Interfaces[0].TxBytes)
+	}
+}
+
+func TestStorageHealthRoundTrip(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	syncID, _ := s.CreateSyncRun(ctx)
+
+	health := domain.StorageHealth{
+		Drives: []domain.DriveHealth{
+			{
+				Device:         "/dev/nvme0n1",
+				Model:          "Samsung 990 PRO",
+				Temperature:    49,
+				PowerOnHours:   912,
+				WearLevelPct:   7,
+				ReallocSectors: 0,
+				HealthStatus:   "good",
+				HealthScore:    97,
+				Alert:          "",
+			},
+		},
+	}
+
+	if err := s.SaveStorageHealth(ctx, syncID, health); err != nil {
+		t.Fatalf("SaveStorageHealth: %v", err)
+	}
+
+	got, err := s.GetStorageHealth(ctx, syncID)
+	if err != nil {
+		t.Fatalf("GetStorageHealth: %v", err)
+	}
+	if got == nil {
+		t.Fatal("expected non-nil storage health")
+	}
+	if len(got.Drives) != 1 {
+		t.Fatalf("expected 1 drive, got %d", len(got.Drives))
+	}
+	if got.Drives[0].HealthScore != 97 {
+		t.Errorf("expected health score 97, got %d", got.Drives[0].HealthScore)
+	}
+}
+
+func TestJournalAlertsRoundTrip(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	syncID, _ := s.CreateSyncRun(ctx)
+	now := time.Now().Truncate(time.Second)
+
+	alerts := []domain.JournalAlert{
+		{
+			Timestamp: now,
+			Unit:      "ssh.service",
+			Priority:  3,
+			Message:   "Too many authentication failures",
+			Category:  "security",
+		},
+		{
+			Timestamp: now.Add(time.Second),
+			Unit:      "docker.service",
+			Priority:  4,
+			Message:   "Container restart policy triggered",
+			Category:  "runtime",
+		},
+	}
+
+	if err := s.SaveJournalAlerts(ctx, syncID, alerts); err != nil {
+		t.Fatalf("SaveJournalAlerts: %v", err)
+	}
+
+	got, err := s.GetJournalAlerts(ctx, syncID)
+	if err != nil {
+		t.Fatalf("GetJournalAlerts: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected 2 journal alerts, got %d", len(got))
+	}
+	if got[0].Unit != alerts[0].Unit {
+		t.Errorf("expected first unit %s, got %s", alerts[0].Unit, got[0].Unit)
+	}
+	if got[1].Category != alerts[1].Category {
+		t.Errorf("expected second category %s, got %s", alerts[1].Category, got[1].Category)
+	}
+}
+
 func TestGitHubNotificationsRoundTrip(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()

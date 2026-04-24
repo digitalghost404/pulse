@@ -17,6 +17,7 @@ type Config struct {
 	Adapters map[string]bool `mapstructure:"adapters"`
 	Sync     SyncConfig      `mapstructure:"sync"`
 	Costs    CostsConfig     `mapstructure:"costs"`
+	Journal  JournalConfig   `mapstructure:"journal"`
 }
 
 type ProjectsConfig struct {
@@ -35,13 +36,18 @@ type ObsidianConfig struct {
 }
 
 type ClaudeConfig struct {
-	Subscription     string `mapstructure:"subscription"`      // "max", "api", or "" (auto-detect)
+	Subscription     string `mapstructure:"subscription"`       // "max", "api", or "" (auto-detect)
 	MonthlyCostCents int    `mapstructure:"monthly_cost_cents"` // fixed monthly cost in cents (e.g., 10000 = $100)
 }
 
 type SyncConfig struct {
 	Timeout string `mapstructure:"timeout"`
 	LogFile string `mapstructure:"log_file"`
+}
+
+type JournalConfig struct {
+	WatchUnits  []string `mapstructure:"watch_units"`
+	MinPriority int      `mapstructure:"min_priority"`
 }
 
 type CostsConfig struct {
@@ -52,15 +58,15 @@ type CostsConfig struct {
 }
 
 type PricingConfig struct {
-	TavilyCentsPerRequest      int     `mapstructure:"tavily_cents_per_request"`       // e.g., 1 = $0.01/request
-	ElevenLabsCentsPer1KChars  int     `mapstructure:"elevenlabs_cents_per_1k_chars"`  // e.g., 30 = $0.30/1k chars
+	TavilyCentsPerRequest     int `mapstructure:"tavily_cents_per_request"`      // e.g., 1 = $0.01/request
+	ElevenLabsCentsPer1KChars int `mapstructure:"elevenlabs_cents_per_1k_chars"` // e.g., 30 = $0.30/1k chars
 }
 
 type SubscriptionConfig struct {
-	Name             string `mapstructure:"name"`              // display name (e.g., "Google One Premium")
-	Service          string `mapstructure:"service"`           // service key (e.g., "google-one")
+	Name             string `mapstructure:"name"`               // display name (e.g., "Google One Premium")
+	Service          string `mapstructure:"service"`            // service key (e.g., "google-one")
 	MonthlyCostCents int    `mapstructure:"monthly_cost_cents"` // cost in cents (e.g., 2499 = $24.99)
-	Notes            string `mapstructure:"notes"`             // optional description
+	Notes            string `mapstructure:"notes"`              // optional description
 }
 
 // AdapterEnabled returns whether an adapter is enabled. Unlisted adapters default to enabled.

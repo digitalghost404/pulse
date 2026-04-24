@@ -44,6 +44,11 @@ github:
 adapters:
   git: true
   github: false
+journal:
+  watch_units:
+    - ssh.service
+    - docker.service
+  min_priority: 4
 sync:
   timeout: 60s
 `
@@ -64,6 +69,12 @@ sync:
 	}
 	if cfg.Sync.Timeout != "60s" {
 		t.Errorf("expected timeout 60s, got %s", cfg.Sync.Timeout)
+	}
+	if len(cfg.Journal.WatchUnits) != 2 || cfg.Journal.WatchUnits[0] != "ssh.service" {
+		t.Errorf("expected journal watch units loaded, got %v", cfg.Journal.WatchUnits)
+	}
+	if cfg.Journal.MinPriority != 4 {
+		t.Errorf("expected journal min priority 4, got %d", cfg.Journal.MinPriority)
 	}
 	if cfg.Adapters["github"] != false {
 		t.Errorf("expected github adapter disabled")

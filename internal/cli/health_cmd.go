@@ -107,9 +107,10 @@ func runHealth(cmd *cobra.Command, args []string) error {
 			Checks []checkResult `json:"checks"`
 		}
 		status := "healthy"
-		if exitCode == 1 {
+		switch exitCode {
+		case 1:
 			status = "degraded"
-		} else if exitCode == 2 {
+		case 2:
 			status = "unhealthy"
 		}
 		return jsonOut(healthResponse{
@@ -121,9 +122,10 @@ func runHealth(cmd *cobra.Command, args []string) error {
 	// Human-readable output
 	for _, c := range checks {
 		icon := "✓"
-		if c.Status == "WARN" {
+		switch c.Status {
+		case "WARN":
 			icon = "!"
-		} else if c.Status == "FAIL" {
+		case "FAIL":
 			icon = "✗"
 		}
 		msg := c.Message
@@ -134,9 +136,10 @@ func runHealth(cmd *cobra.Command, args []string) error {
 	}
 
 	statusLine := "Status: healthy"
-	if exitCode == 1 {
+	switch exitCode {
+	case 1:
 		statusLine = "Status: degraded"
-	} else if exitCode == 2 {
+	case 2:
 		statusLine = "Status: unhealthy"
 	}
 	fmt.Println(statusLine)

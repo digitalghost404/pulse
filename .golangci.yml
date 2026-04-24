@@ -1,0 +1,54 @@
+version: "2"
+
+linters:
+  default: all
+  disable:
+    - depguard
+    - exhaustruct
+    - forcetypeassert
+    - funlen
+    - gocognit
+    - gocyclo
+    - gochecknoglobals
+    - goconst
+    - godox
+    - ireturn
+    - lll
+    - maintidx
+    - mnd
+    - nestif
+    - nlreturn
+    - nonamedreturns
+    - tagliatelle
+    - wsl
+    - varnamelen
+    - testpackage
+    - paralleltest
+    - gosec
+    - dupl
+    - cyclop
+    - predeclared
+    - contextcheck
+    - canonicalheader
+    - copyloopvar
+    - intrange
+    - perfsprint
+    - recvcheck
+    - spancheck
+
+  settings:
+    errcheck:
+      exclude-functions:
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - fmt.Fprint
+        - fmt.Printf
+        - fmt.Println
+        - fmt.Print
+    staticcheck:
+      checks:
+        - all
+        - -ST1005
+
+run:
+  timeout: 5m
