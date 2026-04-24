@@ -1,3 +1,4 @@
+// Package sync orchestrates collector execution and data persistence.
 package sync
 
 import (

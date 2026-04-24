@@ -98,7 +98,7 @@ func ParseDockerPSLine(line string) (domain.DockerSnapshot, error) {
 	}, nil
 }
 
-// parsePercent parses "12.34%" to 12.34
+// ParsePercent parses "12.34%" to 12.34.
 func ParsePercent(s string) float64 {
 	s = strings.TrimSuffix(strings.TrimSpace(s), "%")
 	v, _ := strconv.ParseFloat(s, 64)

@@ -1,3 +1,4 @@
+// Package discovery scans the filesystem for project directories.
 package discovery
 
 import (

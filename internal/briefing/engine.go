@@ -1,3 +1,4 @@
+// Package briefing assembles collector data into a unified Pulse briefing.
 package briefing
 
 import (
