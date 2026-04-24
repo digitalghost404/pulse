@@ -1,41 +1,12 @@
-version: "2"
-
 linters:
-  default: all
-  disable:
-    - depguard
-    - exhaustruct
-    - forcetypeassert
-    - funlen
-    - gocognit
-    - gocyclo
-    - gochecknoglobals
-    - goconst
-    - godox
-    - ireturn
-    - lll
-    - maintidx
-    - mnd
-    - nestif
-    - nlreturn
-    - nonamedreturns
-    - tagliatelle
-    - wsl
-    - varnamelen
-    - testpackage
-    - paralleltest
-    - gosec
-    - dupl
-    - cyclop
-    - predeclared
-    - contextcheck
-    - canonicalheader
-    - copyloopvar
-    - intrange
-    - perfsprint
-    - recvcheck
-    - spancheck
-
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+  disable-all: true
   settings:
     errcheck:
       exclude-functions:
