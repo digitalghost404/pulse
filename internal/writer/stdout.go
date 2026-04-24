@@ -1,3 +1,4 @@
+// Package writer renders Pulse briefings to various output formats.
 package writer
 
 import (
