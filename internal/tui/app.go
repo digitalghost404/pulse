@@ -1,3 +1,4 @@
+// Package tui provides the Bubble Tea dashboard for Pulse.
 package tui
 
 import (
