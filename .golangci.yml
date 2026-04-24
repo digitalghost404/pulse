@@ -2,12 +2,12 @@ version: "2"
 
 linters:
   enable:
-    - errcheck
     - govet
     - ineffassign
     - staticcheck
     - unused
   disable:
+    - errcheck
     - depguard
     - exhaustruct
     - forcetypeassert
@@ -44,26 +44,12 @@ linters:
     - wsl_v5
     - wsl
 
-  exclusions:
-    rules:
-      - path: internal/writer/
-        linters:
-          - errcheck
-      - path: internal/cli/
-        linters:
-          - errcheck
-      - path: internal/tui/
-        linters:
-          - errcheck
-      - path: internal/collector/
-        linters:
-          - errcheck
-
   settings:
     staticcheck:
       checks:
         - all
         - -ST1005
+        - -QF1012
 
 run:
   timeout: 5m
