@@ -55,8 +55,8 @@ func renderBriefingTab(b *domain.Briefing, width int) string {
 		for _, sc := range b.CostSummary.ByService {
 			fmt.Fprintf(&sb, "  %s: $%.2f\n", sc.Service, float64(sc.AmountCents)/100)
 		}
-		sb.WriteString(fmt.Sprintf("  Total: $%.2f — Burn: $%.2f/day\n",
-			float64(b.CostSummary.TotalCents)/100, float64(b.CostSummary.BurnRateCents)/100))
+		fmt.Fprintf(&sb, "  Total: $%.2f — Burn: $%.2f/day\n",
+			float64(b.CostSummary.TotalCents)/100, float64(b.CostSummary.BurnRateCents)/100)
 		sb.WriteString("\n")
 	}
 
@@ -69,7 +69,7 @@ func renderBriefingTab(b *domain.Briefing, width int) string {
 			if !strings.HasPrefix(c.Status, "Up") {
 				icon = dimStyle.Render("○")
 			}
-			sb.WriteString(fmt.Sprintf("  %s %s (%s) — %s\n", icon, c.ContainerName, c.Image, c.Status))
+			fmt.Fprintf(&sb, "  %s %s (%s) — %s\n", icon, c.ContainerName, c.Image, c.Status)
 		}
 		sb.WriteString("\n")
 	}
@@ -77,10 +77,10 @@ func renderBriefingTab(b *domain.Briefing, width int) string {
 	// System
 	sb.WriteString(sectionStyle.Render("--- System ---"))
 	sb.WriteString("\n")
-	sb.WriteString(fmt.Sprintf("  CPU: %.0f%% — RAM: %.1f/%.1f GB — Disk: %.0f/%.0f GB\n",
+	fmt.Fprintf(&sb, "  CPU: %.0f%% — RAM: %.1f/%.1f GB — Disk: %.0f/%.0f GB\n",
 		b.System.CPUPct,
 		b.System.MemoryUsedMB/1024, b.System.MemoryTotalMB/1024,
-		b.System.DiskUsedGB, b.System.DiskTotalGB))
+		b.System.DiskUsedGB, b.System.DiskTotalGB)
 
 	return sb.String()
 }
