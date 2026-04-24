@@ -1,12 +1,49 @@
+version: "2"
+
 linters:
   enable:
     - errcheck
-    - gosimple
     - govet
     - ineffassign
     - staticcheck
     - unused
-  disable-all: true
+  disable:
+    - depguard
+    - exhaustruct
+    - forcetypeassert
+    - funlen
+    - gocognit
+    - gocyclo
+    - gochecknoglobals
+    - gochecknoinits
+    - goconst
+    - gocritic
+    - godot
+    - godox
+    - gosmopolitan
+    - inamedparam
+    - interfacebloat
+    - ireturn
+    - lll
+    - maintidx
+    - mirror
+    - mnd
+    - musttag
+    - nestif
+    - nilerr
+    - nilnil
+    - noctx
+    - noinlineerr
+    - nlreturn
+    - nonamedreturns
+    - revive
+    - tagliatelle
+    - unparam
+    - usestdlibvars
+    - wrapcheck
+    - wsl_v5
+    - wsl
+
   settings:
     errcheck:
       exclude-functions:
